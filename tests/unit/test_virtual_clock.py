@@ -1,22 +1,18 @@
 """Unit tests for Virtual Clock and Deterministic RNG Abstraction (TASK-P1-001)."""
 
 import datetime
-import importlib
 import time
 from datetime import timezone
 
 import pytest
-from arc_sdk.clock import (
+
+from arc.execution.sandbox_runner.clock_interceptor import intercept_system_clock
+from arc.sdk.clock import (
     DeterministicRNG,
     VirtualClock,
     VirtualClockError,
     pin_model_params,
 )
-
-# Load clock_interceptor dynamically from execution/sandbox-runner/clock_interceptor.py
-clock_interceptor_module = importlib.import_module("execution.sandbox-runner.clock_interceptor")
-ClockInterceptor = clock_interceptor_module.ClockInterceptor
-intercept_system_clock = clock_interceptor_module.intercept_system_clock
 
 
 def test_virtual_clock_advance_and_freeze() -> None:

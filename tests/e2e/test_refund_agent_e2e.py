@@ -9,34 +9,21 @@ Tests:
 
 from __future__ import annotations
 
-import os
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from typer.testing import CliRunner
 
-# Ensure required source roots are in sys.path
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sdk_python_dir = os.path.join(root_dir, "sdk", "python")
-exec_fork_dir = os.path.join(root_dir, "execution", "fork-engine")
-exec_inv_dir = os.path.join(root_dir, "execution", "invariant-engine")
-examples_dir = os.path.join(root_dir, "examples", "refund-agent")
-
-for p in [root_dir, sdk_python_dir, exec_fork_dir, exec_inv_dir, examples_dir]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-from agent import INV_PAY_002_SPEC, run_refund_agent
-from delta_debugging import ddmin
-from evaluator import InvariantEvaluator
-from orchestrator import FaultSpec, ForkOrchestrator
-from reproducer_export import export_minimal_reproducer_yaml
-
-from cli.main import app
+from arc.cli.main import app
+from arc.execution.fork_engine.delta_debugging import ddmin
+from arc.execution.fork_engine.orchestrator import FaultSpec, ForkOrchestrator
+from arc.execution.fork_engine.reproducer_export import export_minimal_reproducer_yaml
+from arc.execution.invariant_engine.evaluator import InvariantEvaluator
+from examples.refund_agent.agent import INV_PAY_002_SPEC, run_refund_agent
 
 runner = CliRunner()
+examples_dir = Path(__file__).resolve().parent.parent.parent / "examples" / "refund_agent"
 
 
 def test_refund_agent_nominal_execution() -> None:

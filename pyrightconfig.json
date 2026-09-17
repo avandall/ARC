@@ -1,0 +1,15 @@
+{
+  "include": [
+    "src",
+    "examples",
+    "pipeline",
+    "tests"
+  ],
+  "extraPaths": [
+    "src",
+    "pipeline"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.10"
+}

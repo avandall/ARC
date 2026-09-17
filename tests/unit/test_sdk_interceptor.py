@@ -9,15 +9,10 @@ Tests cover:
 
 from __future__ import annotations
 
-import os
-import sys
 import time
 from typing import Any
 
-# Ensure sdk/python is in sys.path for test resolution
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../sdk/python")))
-
-import arc_sdk as arc
+import arc.sdk as arc
 
 
 def test_python_sdk_agent_and_tool_decorators() -> None:

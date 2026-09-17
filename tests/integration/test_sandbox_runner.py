@@ -7,16 +7,14 @@ Mandatory Test Cases per TASK-P1-003:
 - test_sandbox_hard_fail_on_production_token
 """
 
-import os
-import sys
-
 import pytest
 
-# Ensure execution/sandbox-runner is in sys.path
-sys.path.insert(0, os.path.abspath("execution/sandbox-runner"))
-
-from runner import SandboxConfig, SandboxRunner
-from security import InvalidSignatureError, SecurityViolationError, compute_hmac_signature
+from arc.execution.sandbox_runner.runner import SandboxConfig, SandboxRunner
+from arc.execution.sandbox_runner.security import (
+    InvalidSignatureError,
+    SecurityViolationError,
+    compute_hmac_signature,
+)
 
 
 def test_sandbox_runner_docker_internal_network_mode() -> None:

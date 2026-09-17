@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-# Ensure execution/fork-engine directory is in sys.path
-fork_engine_dir = os.path.abspath("execution/fork-engine")
-if fork_engine_dir not in sys.path:
-    sys.path.insert(0, fork_engine_dir)
-
-from gate_evaluator import CIGateExitCode, GateEvaluationResult, GateEvaluator, check_wilson_overlap
-from orchestrator import ForkRunResult
-
-from cli.main import app
+from arc.cli.main import app
+from arc.execution.fork_engine.gate_evaluator import (
+    CIGateExitCode,
+    GateEvaluationResult,
+    GateEvaluator,
+    check_wilson_overlap,
+)
+from arc.execution.fork_engine.orchestrator import ForkRunResult
 
 runner = CliRunner()
 

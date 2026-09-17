@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
 from pathlib import Path
 
 import jsonschema
 import pytest
 import yaml
 
-sys.path.insert(0, os.path.abspath("execution/fork-engine"))
-
-from delta_debugging import IrreproducibleBugError, ddmin
-from reproducer_export import export_minimal_reproducer_yaml
+from arc.execution.fork_engine.delta_debugging import IrreproducibleBugError, ddmin
+from arc.execution.fork_engine.reproducer_export import export_minimal_reproducer_yaml
 
 
 def test_ddmin_reduces_multi_fault_sequence() -> None:
@@ -89,7 +85,7 @@ def test_export_minimal_reproducer_yaml(tmp_path: Path) -> None:
         jsonschema.validate(instance=data, schema=schema)
 
     # Verify compatibility with `arc repro` CLI command
-    from cli.commands.repro import repro_command
+    from arc.cli.commands.repro import repro_command
 
     repro_command(str(exported_path))
 

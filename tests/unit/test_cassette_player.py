@@ -7,16 +7,11 @@ Mandatory Test Cases:
 - test_rule_based_matcher_detects_semantic_payload_change: Reject match on business payload mismatch.
 """
 
-import os
-import sys
 from typing import Any
 
 import pytest
 
-# Ensure execution/sandbox-runner is in sys.path
-sys.path.insert(0, os.path.abspath("execution/sandbox-runner"))
-
-from cassette_player import (
+from arc.execution.sandbox_runner.cassette_player import (
     CassetteMissException,
     CassettePlayer,
     CassetteRecord,

@@ -7,19 +7,14 @@ Covers:
 - test_post_collector_unauthorized_missing_token: 401 Unauthorized handling for missing/invalid token.
 """
 
-import os
-import sys
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-# Ensure control-plane is in sys.path
-sys.path.insert(0, os.path.abspath("control-plane"))
-
-from collector.main import app, warehouse
-from warehouse.blob_store import S3BlobStore
-from warehouse.db_store import DatabaseStore
+from arc.control_plane.collector.main import app, warehouse
+from arc.control_plane.warehouse.blob_store import S3BlobStore
+from arc.control_plane.warehouse.db_store import DatabaseStore
 
 VALID_TOKEN = "valid_test_token_123"
 

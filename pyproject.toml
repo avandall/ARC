@@ -3,19 +3,64 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "enterprise-agent-pipeline-project"
+name = "arc-agent"
 version = "0.1.0"
-description = "Project configured with Enterprise Agent Pipeline"
+description = "Autonomous Reliability & Chaos Harness for AI Agents"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "ARC Team" }
+]
+keywords = ["ai-agents", "reliability", "chaos-engineering", "testing", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+]
 dependencies = [
     "pydantic>=2.0.0",
     "httpx>=0.24.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "pytest>=7.0.0",
-    "bandit>=1.7.0"
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.100.0",
+    "scipy>=1.10.0",
+    "opentelemetry-api>=1.20.0",
+    "tree-sitter>=0.26.0",
+    "tree-sitter-python>=0.25.0",
+    "tree-sitter-sql>=0.3.11",
+    "jsonschema>=4.26.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/arc-plus/arc"
+Repository = "https://github.com/arc-plus/arc"
+Issues = "https://github.com/arc-plus/arc/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "bandit>=1.7.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
+]
+
+[project.scripts]
+arc = "arc.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+arc = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -26,9 +71,15 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+mypy_path = "src"
 
 [tool.pytest.ini_options]
-testpaths = ["pipeline/tests", "tests"]
+testpaths = ["tests", "pipeline/tests"]
 python_files = "test_*.py"
-pythonpath = [".", "sdk/python", "control-plane"]
+pythonpath = ["src", "."]
+
+[dependency-groups]
+dev = [
+    "twine>=7.0.0",
+]
 

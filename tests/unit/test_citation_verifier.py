@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-import os
-import sys
-
-# Ensure control-plane is in sys.path
-sys.path.insert(0, os.path.abspath("control-plane"))
-
-from miner import (
+from arc.control_plane.miner import (
     DifferentialProfiler,
     PostmortemMiner,
     get_citation_similarity,

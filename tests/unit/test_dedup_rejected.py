@@ -5,19 +5,15 @@ miner auto-deduplication, catalog sync directional enforcement, and CLI reconsid
 """
 
 import hashlib
-import os
-import sys
 
-sys.path.insert(0, os.path.abspath("control-plane"))
-
-from approval_gateway.gateway import ApprovalGateway
-from collector.main import app as collector_app
 from fastapi.testclient import TestClient
-from miner.ast_miner import ASTMiner
 from typer.testing import CliRunner
-from warehouse.db_store import DatabaseStore
 
-from cli.main import app as cli_app
+from arc.cli.main import app as cli_app
+from arc.control_plane.approval_gateway.gateway import ApprovalGateway
+from arc.control_plane.collector.main import app as collector_app
+from arc.control_plane.miner.ast_miner import ASTMiner
+from arc.control_plane.warehouse.db_store import DatabaseStore
 
 client = TestClient(collector_app)
 runner = CliRunner()

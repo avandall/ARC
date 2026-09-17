@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-import os
-import sys
-
 import pytest
 
-# Add execution/invariant-engine directory to sys.path
-sys.path.insert(0, os.path.abspath("execution/invariant-engine"))
-
-from evaluator import (
+from arc.execution.invariant_engine.evaluator import (
     ALLOWED_CATEGORIES,
     EvaluationResult,
     ForbiddenExpressionError,
     InvariantEvaluator,
     InvariantSpec,
 )
-from quarantine import QuarantineManager
+from arc.execution.invariant_engine.quarantine import QuarantineManager
 
 
 def test_cel_evaluator_conservation_rule() -> None:

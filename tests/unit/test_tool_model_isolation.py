@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-import os
-import sys
-
 import pytest
 
-# Ensure execution/tool-models and refund_domain are in sys.path
-sys.path.insert(0, os.path.abspath("execution/tool-models"))
-sys.path.insert(0, os.path.abspath("execution/tool-models/refund_domain"))
-
-from base import UnsupportedFaultException, registry
-from mock_payment import MockPaymentGateway
+from arc.execution.tool_models.base import UnsupportedFaultException, registry
+from arc.execution.tool_models.refund_domain.mock_payment import MockPaymentGateway
 
 
 def test_mock_payment_gateway_idempotency_handling() -> None:

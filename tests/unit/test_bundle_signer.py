@@ -8,19 +8,14 @@ Mandatory Test Cases:
 """
 
 import json
-import os
 import pathlib
-import sys
 from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-# Ensure control-plane is in sys.path
-sys.path.insert(0, os.path.abspath("control-plane"))
-
-from warehouse.bundle_generator import (
+from arc.control_plane.warehouse.bundle_generator import (
     BundleSignatureVerifier,
     HarnessBundleGenerator,
     InvalidBundleSignatureError,

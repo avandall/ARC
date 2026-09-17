@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from typing import Any
 
 import pytest
 
-# Add execution/fork-engine directory to sys.path
-sys.path.insert(0, os.path.abspath("execution/fork-engine"))
-
-from fault_catalog import FaultSpec, FaultType
-from orchestrator import ForkOrchestrator
-from stats import calculate_wilson_score, compute_n_min, compute_n_valid
+from arc.execution.fork_engine.fault_catalog import FaultSpec, FaultType
+from arc.execution.fork_engine.orchestrator import ForkOrchestrator
+from arc.execution.fork_engine.stats import (
+    calculate_wilson_score,
+    compute_n_min,
+    compute_n_valid,
+)
 
 
 def test_fork_orchestrator_runs_k_branches_in_parallel() -> None:

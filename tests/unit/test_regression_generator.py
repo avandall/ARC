@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import ast
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import yaml
 
-# Ensure execution/fork-engine directory is in sys.path
-fork_engine_dir = os.path.abspath("execution/fork-engine")
-if fork_engine_dir not in sys.path:
-    sys.path.insert(0, fork_engine_dir)
-
-from regression_generator import RegressionTestGenerator, generate_regression_test
+from arc.execution.fork_engine.regression_generator import (
+    RegressionTestGenerator,
+    generate_regression_test,
+)
 
 
 def test_codegen_pytest_from_reproducer_yaml(tmp_path: Path) -> None:

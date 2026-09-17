@@ -6,8 +6,8 @@ from collections.abc import Generator
 import pytest
 from typer.testing import CliRunner
 
-from cli.main import app
-from cli.proxy.debugger_proxy import LocalDebuggerProxy
+from arc.cli.main import app
+from arc.cli.proxy.debugger_proxy import LocalDebuggerProxy
 
 runner = CliRunner()
 

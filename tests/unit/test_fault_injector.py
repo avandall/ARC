@@ -2,16 +2,9 @@
 
 from __future__ import annotations
 
-import os
-import sys
-
-# Ensure execution/fork-engine and execution/sandbox-runner are in sys.path
-sys.path.insert(0, os.path.abspath("execution/fork-engine"))
-sys.path.insert(0, os.path.abspath("execution/sandbox-runner"))
-
-from fault_catalog import FaultCatalog, FaultSpec, FaultType
-from injector import FaultInjector
-from passive_ledger import PassiveEffectLedger
+from arc.execution.fork_engine.fault_catalog import FaultCatalog, FaultSpec, FaultType
+from arc.execution.fork_engine.injector import FaultInjector
+from arc.execution.sandbox_runner.passive_ledger import PassiveEffectLedger
 
 
 def test_inject_timeout_after_commit() -> None:

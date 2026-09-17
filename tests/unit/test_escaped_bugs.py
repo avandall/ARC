@@ -2,14 +2,14 @@
 
 import pytest
 from typer.testing import CliRunner
-from warehouse.db_store import DatabaseStore
-from warehouse.escaped_bugs import (
+
+from arc.cli.main import app
+from arc.control_plane.warehouse.db_store import DatabaseStore
+from arc.control_plane.warehouse.escaped_bugs import (
     EscapedBugTracker,
     calculate_quarterly_escaped_bug_rate,
     tag_incident,
 )
-
-from cli.main import app
 
 runner = CliRunner()
 
