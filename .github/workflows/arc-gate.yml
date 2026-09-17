@@ -1,0 +1,101 @@
+name: ARC Gate CI Workflow
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke-gate:
+    name: Smoke Gate (PR)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run ARC Gate Smoke Profile
+        id: run_smoke
+        run: |
+          set +e
+          arc gate --profile smoke
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "ARC Gate Smoke Profile passed successfully (exit code 0)."
+            exit 0
+          elif [ $EXIT_CODE -eq 1 ]; then
+            echo "CRITICAL VIOLATION: Critical invariant violation detected (exit code 1). Blocking merge!"
+            exit 1
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "BUDGET EXCEEDED: Execution budget limit reached (exit code 2). Posting warning comment."
+            echo "::warning title=ARC Gate Budget Exceeded::Execution budget exceeded during smoke gate evaluation."
+            echo "## ⚠️ ARC Gate Warning" >> $GITHUB_STEP_SUMMARY
+            echo "Budget limit exceeded during smoke profile evaluation." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          elif [ $EXIT_CODE -eq 3 ]; then
+            echo "INFRASTRUCTURE ERROR: Sandbox runner or infrastructure failure (exit code 3)."
+            exit 3
+          else
+            echo "Unexpected exit code: $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+
+  nightly-gate:
+    name: Nightly Gate (Full Profile)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run ARC Gate Full Profile
+        id: run_full
+        run: |
+          set +e
+          arc gate --profile full
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "ARC Gate Full Profile passed successfully (exit code 0)."
+            exit 0
+          elif [ $EXIT_CODE -eq 1 ]; then
+            echo "CRITICAL VIOLATION: Critical invariant violation detected (exit code 1)."
+            exit 1
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "BUDGET EXCEEDED: Execution budget limit reached (exit code 2). Posting warning comment."
+            echo "::warning title=ARC Gate Budget Exceeded::Execution budget exceeded during nightly full gate evaluation."
+            echo "## ⚠️ ARC Gate Warning" >> $GITHUB_STEP_SUMMARY
+            echo "Budget limit exceeded during full profile evaluation." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          elif [ $EXIT_CODE -eq 3 ]; then
+            echo "INFRASTRUCTURE ERROR: Sandbox runner or infrastructure failure (exit code 3)."
+            exit 3
+          else
+            echo "Unexpected exit code: $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
