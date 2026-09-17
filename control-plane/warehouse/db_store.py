@@ -110,10 +110,16 @@ class DatabaseStore:
                 sources TEXT,
                 citation_unverified INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'pending',
-                proposed_at TEXT NOT NULL DEFAULT (datetime('now'))
+                proposed_at TEXT NOT NULL DEFAULT (datetime('now')),
+                false_negative INTEGER NOT NULL DEFAULT 0
             )
             """
         )
+        try:
+            cursor.execute("ALTER TABLE invariant_candidates ADD COLUMN false_negative INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS rejected_candidates (
@@ -122,6 +128,21 @@ class DatabaseStore:
                 reason TEXT NOT NULL,
                 rejected_by TEXT NOT NULL DEFAULT 'engineer',
                 rejected_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS escaped_bugs (
+                incident_id TEXT PRIMARY KEY,
+                trace_id TEXT NOT NULL,
+                linked_invariant TEXT,
+                root_cause TEXT NOT NULL,
+                tagged_by TEXT NOT NULL DEFAULT 'engineer',
+                tagged_at TEXT NOT NULL DEFAULT (datetime('now')),
+                is_agent_caused INTEGER NOT NULL DEFAULT 1,
+                quarter TEXT,
+                FOREIGN KEY (trace_id) REFERENCES traces(trace_id) ON DELETE CASCADE
             )
             """
         )
@@ -394,4 +415,78 @@ class DatabaseStore:
         )
         self._conn.commit()
         return cursor.rowcount > 0
+
+    def insert_escaped_bug(self, bug: dict[str, Any]) -> None:
+        """Inserts or replaces an escaped bug record in the database."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO escaped_bugs (
+                incident_id, trace_id, linked_invariant, root_cause,
+                tagged_by, tagged_at, is_agent_caused, quarter
+            ) VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?)
+            """,
+            (
+                bug.get("incident_id"),
+                bug.get("trace_id"),
+                bug.get("linked_invariant"),
+                bug.get("root_cause", ""),
+                bug.get("tagged_by", "engineer"),
+                1 if bug.get("is_agent_caused", True) else 0,
+                bug.get("quarter"),
+            ),
+        )
+        self._conn.commit()
+
+    def get_escaped_bug(self, incident_id: str) -> dict[str, Any] | None:
+        """Retrieves an escaped bug entry by incident_id."""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT * FROM escaped_bugs WHERE incident_id = ?", (incident_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def list_escaped_bugs(self, quarter: str | None = None) -> list[dict[str, Any]]:
+        """Lists escaped bugs optionally filtered by quarter."""
+        query = "SELECT * FROM escaped_bugs WHERE 1=1"
+        params: list[Any] = []
+        if quarter:
+            query += " AND quarter = ?"
+            params.append(quarter)
+        cursor = self._conn.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    def increment_invariant_false_negative(self, candidate_id: str) -> None:
+        """Increments false_negative count by 1 for the specified invariant in track record."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT candidate_id FROM invariant_candidates WHERE candidate_id = ?", (candidate_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                "UPDATE invariant_candidates SET false_negative = false_negative + 1 WHERE candidate_id = ?",
+                (candidate_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO invariant_candidates (
+                    candidate_id, statement, category, check_expr, status, false_negative
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (candidate_id, f"Invariant {candidate_id}", "safety", "", "approved", 1),
+            )
+        self._conn.commit()
+
+    def get_invariant_false_negative(self, candidate_id: str) -> int:
+        """Retrieves false_negative count for a candidate_id."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT false_negative FROM invariant_candidates WHERE candidate_id = ?", (candidate_id,)
+        )
+        row = cursor.fetchone()
+        return row["false_negative"] if row else 0
+
 
