@@ -270,8 +270,8 @@ def trace_tool(
                         },
                         "response": {
                             "status": "error",
-                            "error": str(exc),
-                            "traceback": tb_str,
+                            "error": redact_payload(str(exc)),
+                            "traceback": redact_payload(tb_str),
                             "latency_ms": latency_ms,
                         },
                         "outcome": "error",

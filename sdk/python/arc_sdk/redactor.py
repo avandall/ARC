@@ -86,21 +86,30 @@ class Redactor:
 
         return result
 
-    def redact(self, data: Any) -> Any:
+    def redact(self, data: Any, seen: set[int] | None = None) -> Any:
         """Hàm đệ quy làm sạch bất kỳ cấu trúc dữ liệu nào (dict, list, str, tuple)."""
+        if seen is None:
+            seen = set()
+
         if isinstance(data, str):
             return self.redact_text(data)
-        elif isinstance(data, dict):
-            return {
-                self.redact(k): self.redact(v)
-                for k, v in data.items()
-            }
-        elif isinstance(data, list):
-            return [self.redact(item) for item in data]
-        elif isinstance(data, tuple):
-            return tuple(self.redact(item) for item in data)
-        elif isinstance(data, set):
-            return {self.redact(item) for item in data}
+        elif isinstance(data, (dict, list, tuple, set)):
+            obj_id = id(data)
+            if obj_id in seen:
+                return "[CIRCULAR]"
+            seen.add(obj_id)
+
+            if isinstance(data, dict):
+                return {
+                    self.redact(k, seen): self.redact(v, seen)
+                    for k, v in data.items()
+                }
+            elif isinstance(data, list):
+                return [self.redact(item, seen) for item in data]
+            elif isinstance(data, tuple):
+                return tuple(self.redact(item, seen) for item in data)
+            elif isinstance(data, set):
+                return {self.redact(item, seen) for item in data}
         return data
 
 

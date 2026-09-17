@@ -1,0 +1,17 @@
+{
+  "name": "arc-monorepo",
+  "private": true,
+  "workspaces": [
+    "sdk/typescript"
+  ],
+  "scripts": {
+    "test": "vitest run --dir sdk/typescript",
+    "typecheck": "tsc --noEmit -p sdk/typescript/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1",
+    "zod": "^3.25.76"
+  }
+}
