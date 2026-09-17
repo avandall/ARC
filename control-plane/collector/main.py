@@ -4,6 +4,7 @@ Endpoints:
 - POST /v1/collector/traces
 - GET  /v1/traces
 - GET  /v1/traces/{trace_id}
+- GET  /v1/traces/{trace_id}/bundle
 """
 
 import os
@@ -19,6 +20,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, st
 from warehouse.warehouse import TraceWarehouse
 
 from collector.auth import verify_token
+from collector.routes import router as bundle_router
 
 app = FastAPI(title="ARC+ Control Plane Collector REST API", version="1.0.0")
 
@@ -27,6 +29,9 @@ warehouse = TraceWarehouse()
 
 def get_warehouse() -> TraceWarehouse:
     return warehouse
+
+
+app.include_router(bundle_router)
 
 
 @app.post(
