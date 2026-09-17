@@ -1,9 +1,15 @@
 """arc_sdk: Python Interceptor SDK for ARC Plus Platform.
 
 Provides automatic trace capture, tool call redaction, OpenTelemetry span creation,
-and Canonical Trace Format (CTF v1.0) export.
+Canonical Trace Format (CTF v1.0) export, Virtual Clock, and Deterministic RNG.
 """
 
+from arc_sdk.clock import (
+    DeterministicRNG,
+    VirtualClock,
+    VirtualClockError,
+    pin_model_params,
+)
 from arc_sdk.interceptor import (
     TraceContext,
     get_current_trace,
@@ -20,11 +26,15 @@ from arc_sdk.redactor import (
 
 __all__ = [
     "DEFAULT_RULES",
+    "DeterministicRNG",
     "RedactionRule",
     "Redactor",
     "TraceContext",
+    "VirtualClock",
+    "VirtualClockError",
     "get_current_trace",
     "get_current_trace_context",
+    "pin_model_params",
     "redact_payload",
     "trace_agent",
     "trace_tool",
