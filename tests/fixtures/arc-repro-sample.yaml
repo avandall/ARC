@@ -1,0 +1,10 @@
+trace: "trc_sample_12345"
+determinism_level: "L1"
+faults:
+  - at_step: 1
+    type: "HTTP_500"
+    tool: "StripeRefundTool"
+violated: "double_refund_invariant"
+reproduce_rate: 1.0
+confidence_interval: [0.95, 1.0]
+cost_usd: 0.05
