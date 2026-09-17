@@ -1,0 +1,164 @@
+{
+  "bundle_id": "bundle_8842_nominal",
+  "bundle_schema_version": "1.0",
+  "generated_at": "2026-09-17T18:00:00Z",
+  "source_trace_id": "trace_8842_nominal_001",
+  "target_service": "refund-agent",
+  "determinism_level": "L1",
+  "entrypoint": {
+    "agent": "refund-agent",
+    "order_id": "8842"
+  },
+  "steps": [
+    {
+      "step_id": 0,
+      "kind": "tool_call",
+      "t_virtual_ms": 10.0,
+      "parent_step": null,
+      "request": {
+        "tool": "lookup",
+        "args": { "order_id": "8842" },
+        "args_ref": null,
+        "idempotency_key": null,
+        "declared_mutating": false,
+        "mutating": false,
+        "scope": "read"
+      },
+      "response": {
+        "status": "ok",
+        "body": {
+          "order_id": "8842",
+          "customer_id": "cust_404",
+          "total_amount": 45.99,
+          "currency": "USD",
+          "status": "delivered",
+          "item": "Wireless Headphones"
+        },
+        "latency_ms": 12.5
+      },
+      "outcome": "success",
+      "forkable": true,
+      "fork_reasons": null
+    },
+    {
+      "step_id": 1,
+      "kind": "tool_call",
+      "t_virtual_ms": 25.0,
+      "parent_step": 0,
+      "request": {
+        "tool": "check_policy",
+        "args": { "order_id": "8842" },
+        "args_ref": null,
+        "idempotency_key": null,
+        "declared_mutating": false,
+        "mutating": false,
+        "scope": "read"
+      },
+      "response": {
+        "status": "ok",
+        "body": {
+          "order_id": "8842",
+          "eligible": true,
+          "max_refund_amount": 45.99,
+          "policy_code": "POL-REFUND-30D"
+        },
+        "latency_ms": 8.0
+      },
+      "outcome": "success",
+      "forkable": true,
+      "fork_reasons": null
+    },
+    {
+      "step_id": 2,
+      "kind": "tool_call",
+      "t_virtual_ms": 40.0,
+      "parent_step": 1,
+      "request": {
+        "tool": "issue_refund",
+        "args": { "order_id": "8842", "amount": 45.99 },
+        "args_ref": null,
+        "idempotency_key": null,
+        "declared_mutating": true,
+        "mutating": true,
+        "scope": "financial"
+      },
+      "response": {
+        "status": "ok",
+        "body": {
+          "status": "ok",
+          "refund_id": "ref_8842_nominal",
+          "order_id": "8842",
+          "amount": 45.99,
+          "idempotency_key": null
+        },
+        "latency_ms": 115.0
+      },
+      "outcome": "success",
+      "forkable": true,
+      "fork_reasons": null
+    },
+    {
+      "step_id": 3,
+      "kind": "tool_call",
+      "t_virtual_ms": 160.0,
+      "parent_step": 2,
+      "request": {
+        "tool": "send_email",
+        "args": {
+          "customer_id": "cust_404",
+          "message": "Your refund of $45.99 for Order #8842 has been processed."
+        },
+        "args_ref": null,
+        "idempotency_key": null,
+        "declared_mutating": true,
+        "mutating": true,
+        "scope": "communication"
+      },
+      "response": {
+        "status": "ok",
+        "body": {
+          "status": "sent",
+          "customer_id": "cust_404",
+          "message": "Your refund of $45.99 for Order #8842 has been processed."
+        },
+        "latency_ms": 45.0
+      },
+      "outcome": "success",
+      "forkable": true,
+      "fork_reasons": null
+    }
+  ],
+  "effects": [
+    {
+      "effect_id": "eff_8842_001",
+      "step_id": 2,
+      "type": "financial.refund",
+      "resource": "order:8842",
+      "delta": {
+        "amount": -45.99,
+        "amount_cents": -4599,
+        "currency": "USD"
+      },
+      "reversible": false,
+      "idempotency_key": null,
+      "observed_at_step": 2
+    }
+  ],
+  "cassettes": [
+    {
+      "tool": "lookup",
+      "request_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "response_body_ref": "ref_lookup",
+      "status": "recorded"
+    }
+  ],
+  "state_snapshots": {
+    "order:8842": { "total_cents": 4599, "currency": "USD" }
+  },
+  "invariants_applied": ["INV-PAY-002"],
+  "signature": {
+    "alg": "HMAC-SHA256",
+    "key_id": "arc_key_2026",
+    "value": "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069"
+  }
+}

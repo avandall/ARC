@@ -1,0 +1,14 @@
+trace: "trace_8842_double_refund"
+determinism_level: "L1"
+faults:
+  - at_step: 2
+    type: "timeout_after_commit"
+    tool: "issue_refund"
+    params:
+      latency_ms: 100
+violated: "INV-PAY-002"
+reproduce_rate: 0.35
+confidence_interval:
+  - 0.177
+  - 0.573
+cost_usd: 0.05
