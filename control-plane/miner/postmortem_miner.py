@@ -43,8 +43,9 @@ class PostmortemMiner:
     citation verification per §8.5.
     """
 
-    def __init__(self, min_similarity: float = 0.92) -> None:
+    def __init__(self, min_similarity: float = 0.92, db_store: Any | None = None) -> None:
         self.min_similarity = min_similarity
+        self.db_store = db_store
         self.total_citations_checked = 0
         self.failed_citations_count = 0
         self.verified_candidates: list[PostmortemCandidate] = []
@@ -61,8 +62,13 @@ class PostmortemMiner:
         self,
         draft: dict[str, Any],
         source_document: str,
-    ) -> PostmortemCandidate:
+    ) -> PostmortemCandidate | None:
         """Processes a single candidate draft against source_document, verifying its citation."""
+        statement = draft.get("statement", "")
+        if self.db_store and self.db_store.is_statement_rejected(statement):
+            logger.info(f"Skipping candidate draft with rejected statement: {statement}")
+            return None
+
         self.total_citations_checked += 1
 
         citation = draft.get("citation", "").strip()
@@ -128,7 +134,8 @@ class PostmortemMiner:
         candidates: list[PostmortemCandidate] = []
         for draft in candidate_drafts:
             cand = self.process_candidate_draft(draft, postmortem_text)
-            candidates.append(cand)
+            if cand is not None:
+                candidates.append(cand)
 
         return {
             "total_checked": self.total_citations_checked,

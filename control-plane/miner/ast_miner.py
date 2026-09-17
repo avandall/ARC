@@ -76,7 +76,8 @@ def compute_candidate_id(statement: str, category: str, check: str) -> str:
 class ASTMiner:
     """Miner using tree-sitter AST parsing to extract invariant candidates."""
 
-    def __init__(self) -> None:
+    def __init__(self, db_store: Any | None = None) -> None:
+        self.db_store = db_store
         self.mined_candidates: dict[str, MinedCandidate] = {}
 
     def clear(self) -> None:
@@ -84,13 +85,32 @@ class ASTMiner:
         self.mined_candidates.clear()
 
     def get_candidates(self) -> list[MinedCandidate]:
-        """Returns deduplicated mined candidates."""
-        return list(self.mined_candidates.values())
+        """Returns deduplicated mined candidates, filtering out rejected statements if db_store is set."""
+        candidates = list(self.mined_candidates.values())
+        if self.db_store:
+            candidates = [
+                c for c in candidates if not self.db_store.is_statement_rejected(c.statement)
+            ]
+        return candidates
 
     def _add_candidate(self, candidate: MinedCandidate) -> None:
-        """Adds candidate with deduplication by ID."""
-        if candidate.id not in self.mined_candidates:
-            self.mined_candidates[candidate.id] = candidate
+        """Adds candidate with deduplication by ID and filtering against rejected_candidates."""
+        if candidate.id in self.mined_candidates:
+            return
+        if self.db_store and self.db_store.is_statement_rejected(candidate.statement):
+            logger.info(f"Skipping rejected candidate statement: {candidate.statement}")
+            return
+        self.mined_candidates[candidate.id] = candidate
+
+    def _process_mined_candidate(
+        self, cand: MinedCandidate, out_list: list[MinedCandidate]
+    ) -> None:
+        """Appends candidate to out_list and self.mined_candidates only if not rejected."""
+        if self.db_store and self.db_store.is_statement_rejected(cand.statement):
+            logger.info(f"Skipping candidate matching rejected statement: {cand.statement}")
+            return
+        out_list.append(cand)
+        self._add_candidate(cand)
 
     def mine_python_source(self, code_str: str, filename: str = "") -> list[MinedCandidate]:
         """Parses Python source code and extracts assert/condition invariants safely."""
@@ -130,8 +150,7 @@ class ASTMiner:
                             source=["python_ast"],
                             metadata={"filename": filename},
                         )
-                        candidates.append(cand)
-                        self._add_candidate(cand)
+                        self._process_mined_candidate(cand, candidates)
 
                 for child in node.children:
                     _traverse(child)
@@ -194,8 +213,7 @@ class ASTMiner:
                                 source=["db_constraint"],
                                 metadata={"table": table_name, "filename": filename},
                             )
-                            candidates.append(cand)
-                            self._add_candidate(cand)
+                            self._process_mined_candidate(cand, candidates)
                     elif "FOREIGN KEY" in upper_text or "REFERENCES" in upper_text:
                         category = "consistency"
                         statement = f"Table {table_name} FOREIGN KEY {constraint_text}"
@@ -208,8 +226,7 @@ class ASTMiner:
                             source=["db_constraint"],
                             metadata={"table": table_name, "filename": filename},
                         )
-                        candidates.append(cand)
-                        self._add_candidate(cand)
+                        self._process_mined_candidate(cand, candidates)
 
                 elif node.type == "column_definition":
                     col_text = ddl_str[node.start_byte:node.end_byte].strip()
@@ -228,8 +245,7 @@ class ASTMiner:
                             source=["db_constraint"],
                             metadata={"table": table_name, "column": col_name, "filename": filename},
                         )
-                        candidates.append(cand)
-                        self._add_candidate(cand)
+                        self._process_mined_candidate(cand, candidates)
 
                 for child in node.children:
                     _traverse_sql(child, table_name)

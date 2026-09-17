@@ -16,6 +16,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from approval_gateway.routes import router as approval_router
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from warehouse.warehouse import TraceWarehouse
 
@@ -32,6 +33,7 @@ def get_warehouse() -> TraceWarehouse:
 
 
 app.include_router(bundle_router)
+app.include_router(approval_router)
 
 
 @app.post(

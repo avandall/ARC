@@ -2,6 +2,7 @@
 
 import typer
 
+from cli.commands.catalog import catalog_app
 from cli.commands.debug import debug_command
 from cli.commands.repro import repro_command
 
@@ -13,6 +14,7 @@ app = typer.Typer(
 
 app.command("repro")(repro_command)
 app.command("debug")(debug_command)
+app.add_typer(catalog_app, name="catalog")
 
 
 if __name__ == "__main__":

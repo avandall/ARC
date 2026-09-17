@@ -3,6 +3,9 @@
 Handles CRUD operations for traces, steps, and effects with RLS enforcement.
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import sqlite3
 from typing import Any
@@ -10,6 +13,20 @@ from typing import Any
 
 class DatabaseStore:
     """Database adapter supporting SQL persistence and RLS isolation."""
+
+    _shared_instance: DatabaseStore | None = None
+
+    @classmethod
+    def get_shared_instance(cls) -> DatabaseStore:
+        """Returns singleton shared DatabaseStore instance for memory persistence across modules."""
+        if cls._shared_instance is None:
+            cls._shared_instance = cls(":memory:")
+        return cls._shared_instance
+
+    @classmethod
+    def reset_shared_instance(cls) -> None:
+        """Resets the shared instance (useful for test isolation)."""
+        cls._shared_instance = None
 
     def __init__(self, db_url: str | None = None) -> None:
         self.db_url = db_url or ":memory:"
@@ -77,6 +94,34 @@ class DatabaseStore:
                 idem_key TEXT,
                 observed_at_step INTEGER NOT NULL,
                 FOREIGN KEY (trace_id) REFERENCES traces(trace_id) ON DELETE CASCADE
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS invariant_candidates (
+                candidate_id TEXT PRIMARY KEY,
+                statement TEXT NOT NULL,
+                category TEXT NOT NULL,
+                check_expr TEXT NOT NULL DEFAULT '',
+                severity TEXT NOT NULL DEFAULT 'critical',
+                support INTEGER NOT NULL DEFAULT 0,
+                counter_examples INTEGER NOT NULL DEFAULT 0,
+                sources TEXT,
+                citation_unverified INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                proposed_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rejected_candidates (
+                statement_hash TEXT PRIMARY KEY,
+                original_candidate_id TEXT,
+                reason TEXT NOT NULL,
+                rejected_by TEXT NOT NULL DEFAULT 'engineer',
+                rejected_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
             """
         )
@@ -239,3 +284,114 @@ class DatabaseStore:
         effects = [dict(e) for e in effect_rows]
 
         return {"trace": trace_meta, "steps": steps, "effects": effects}
+
+    @staticmethod
+    def compute_statement_hash(statement: str) -> str:
+        """Computes SHA-256 statement hash from normalized (lowercase + trim) statement string."""
+        normalized = statement.strip().lower()
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def insert_candidate(self, candidate: dict[str, Any]) -> None:
+        """Inserts or replaces an invariant candidate in the database."""
+        cursor = self._conn.cursor()
+        sources = candidate.get("sources") or candidate.get("source")
+        sources_str = json.dumps(sources) if isinstance(sources, list) else str(sources or "")
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO invariant_candidates (
+                candidate_id, statement, category, check_expr, severity,
+                support, counter_examples, sources, citation_unverified, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                candidate.get("id") or candidate.get("candidate_id"),
+                candidate.get("statement", ""),
+                candidate.get("category", "safety"),
+                candidate.get("check", candidate.get("check_expr", "")),
+                candidate.get("severity", "critical"),
+                candidate.get("support", 0),
+                candidate.get("counter_examples", 0),
+                sources_str,
+                1 if candidate.get("citation_unverified") else 0,
+                candidate.get("status", "pending"),
+            ),
+        )
+        self._conn.commit()
+
+    def get_candidate(self, candidate_id: str) -> dict[str, Any] | None:
+        """Retrieves a single candidate by candidate_id."""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT * FROM invariant_candidates WHERE candidate_id = ?", (candidate_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def list_candidates(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Lists invariant candidates optionally filtered by status."""
+        query = "SELECT * FROM invariant_candidates WHERE 1=1"
+        params: list[Any] = []
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        cursor = self._conn.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    def update_candidate_status(self, candidate_id: str, status: str) -> None:
+        """Updates the status of a candidate."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "UPDATE invariant_candidates SET status = ? WHERE candidate_id = ?",
+            (status, candidate_id),
+        )
+        self._conn.commit()
+
+    def insert_rejected_candidate(
+        self,
+        statement_hash: str,
+        original_candidate_id: str | None,
+        reason: str,
+        rejected_by: str = "engineer",
+    ) -> None:
+        """Inserts a record into rejected_candidates table (§8.3)."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO rejected_candidates (
+                statement_hash, original_candidate_id, reason, rejected_by
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (statement_hash, original_candidate_id, reason, rejected_by),
+        )
+        self._conn.commit()
+
+    def get_rejected_candidates(self) -> list[dict[str, Any]]:
+        """Retrieves all rejected candidates."""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT * FROM rejected_candidates ORDER BY rejected_at DESC")
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    def get_rejected_candidate_by_hash(self, statement_hash: str) -> dict[str, Any] | None:
+        """Retrieves rejected candidate entry by statement_hash."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT * FROM rejected_candidates WHERE statement_hash = ?", (statement_hash,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def is_statement_rejected(self, statement: str) -> bool:
+        """Checks if a statement's normalized SHA-256 hash exists in rejected_candidates."""
+        stmt_hash = self.compute_statement_hash(statement)
+        return self.get_rejected_candidate_by_hash(stmt_hash) is not None
+
+    def remove_rejected_candidate(self, statement_hash: str) -> bool:
+        """Removes a record from rejected_candidates table (for reconsider command)."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "DELETE FROM rejected_candidates WHERE statement_hash = ?", (statement_hash,)
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
