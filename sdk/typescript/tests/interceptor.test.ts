@@ -118,4 +118,31 @@ describe("TypeScript Interceptor SDK (@arc/sdk)", () => {
       expect(step.forkable).toBe(false);
     });
   });
+
+  it("test_ts_circular_reference_and_stacktrace_redaction", async () => {
+    const redactor = new Redactor();
+    const cyclicObj: any = { name: "test" };
+    cyclicObj.self = cyclicObj;
+
+    const redacted = redactor.redact(cyclicObj);
+    expect(redacted.name).toBe("test");
+    expect(redacted.self).toBe("[CIRCULAR]");
+
+    async function toolWithSecretException() {
+      throw new Error("Failed with secret: Bearer secret-token-123");
+    }
+
+    const wrappedTool = traceTool(toolWithSecretException, {
+      name: "secretTool",
+      trapExceptions: true,
+    });
+
+    await traceAgent({ name: "secret_agent" }, async () => {
+      await wrappedTool();
+      const ctx = getCurrentTraceContext();
+      const step = ctx!.steps[0];
+      expect(step.response?.error).toContain("[REDACTED:bearer_token]");
+      expect(step.response?.traceback).toContain("[REDACTED:bearer_token]");
+    });
+  });
 });

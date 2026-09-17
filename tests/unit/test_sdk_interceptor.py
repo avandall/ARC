@@ -177,3 +177,27 @@ def test_interceptor_handles_tool_exception() -> None:
     assert "Socket dropped" in step["response"]["error"]
     assert "ConnectionResetError" in step["response"]["traceback"]
     assert step["outcome"] == "error"
+
+
+def test_python_circular_reference_and_stacktrace_redaction() -> None:
+    """Test circular reference protection and exception stacktrace redaction in Python SDK."""
+    redactor = arc.Redactor()
+    cyclic_dict: dict[str, Any] = {"name": "test"}
+    cyclic_dict["self"] = cyclic_dict
+
+    redacted = redactor.redact(cyclic_dict)
+    assert redacted["name"] == "test"
+    assert redacted["self"] == "[CIRCULAR]"
+
+    @arc.trace_tool(name="secret_failing_tool")
+    def secret_failing_tool() -> None:
+        raise ValueError("Failed with secret: Bearer secret-token-456")
+
+    with arc.trace_agent(name="secret_agent"):
+        secret_failing_tool()
+        trace = arc.get_current_trace()
+        assert trace is not None
+        step = trace["steps"][0]
+        assert "[REDACTED:generic_bearer]" in step["response"]["error"]
+        assert "[REDACTED:generic_bearer]" in step["response"]["traceback"]
+
