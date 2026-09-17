@@ -141,14 +141,19 @@ class GateEvaluator:
                     branch_executor=branch_executor,
                     run_id=trace_id or "trace_ci_gate",
                 )
-        except (ConnectionRefusedError, OSError) as e:
-            return GateEvaluationResult(
-                exit_code=CIGateExitCode.INFRA_ERROR,
-                status="INFRA_ERROR",
-                profile=self.profile,
-                k=self.k,
-                reason=f"Infrastructure failure: {e}",
-            )
+        except (ConnectionRefusedError, ConnectionError, OSError, RuntimeError) as e:
+            err_str = str(e).lower()
+            if isinstance(e, (ConnectionRefusedError, ConnectionError)) or any(
+                term in err_str for term in ["docker", "connection", "refused", "database", "socket"]
+            ):
+                return GateEvaluationResult(
+                    exit_code=CIGateExitCode.INFRA_ERROR,
+                    status="INFRA_ERROR",
+                    profile=self.profile,
+                    k=self.k,
+                    reason=f"Infrastructure failure: {e}",
+                )
+            raise
         except BudgetExceededException as e:
             return GateEvaluationResult(
                 exit_code=CIGateExitCode.BUDGET_EXCEEDED,
@@ -159,7 +164,7 @@ class GateEvaluator:
             )
         except Exception as e:
             err_str = str(e).lower()
-            if any(term in err_str for term in ["docker", "connection", "refused", "database"]):
+            if any(term in err_str for term in ["docker", "connection", "refused", "database", "socket"]):
                 return GateEvaluationResult(
                     exit_code=CIGateExitCode.INFRA_ERROR,
                     status="INFRA_ERROR",
