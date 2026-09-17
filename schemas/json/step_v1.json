@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.arcplus.internal/v1/step_v1.json",
+  "title": "Canonical Trace Step v1.0",
+  "type": "object",
+  "required": [
+    "step_id",
+    "kind",
+    "t_virtual_ms"
+  ],
+  "properties": {
+    "step_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "model_decision",
+        "tool_call",
+        "human_gate",
+        "external_event",
+        "retry"
+      ]
+    },
+    "t_virtual_ms": {
+      "type": ["integer", "number"],
+      "minimum": 0
+    },
+    "parent_step": {
+      "type": ["integer", "null"]
+    },
+    "request": {
+      "type": ["object", "null"],
+      "properties": {
+        "tool": { "type": ["string", "null"] },
+        "args_ref": { "type": ["string", "null"] },
+        "idempotency_key": { "type": ["string", "null"] },
+        "declared_mutating": { "type": ["boolean", "null"] },
+        "mutating": { "type": ["boolean", "null"] },
+        "scope": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "response": {
+      "type": ["object", "null"],
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "body_ref": { "type": ["string", "null"] },
+        "latency_ms": { "type": ["integer", "number", "null"] }
+      }
+    },
+    "state_snapshot_ref": {
+      "type": ["string", "null"]
+    },
+    "forkable": {
+      "type": ["boolean", "null"]
+    },
+    "fork_reasons": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.arcplus.internal/v1/effect_v1.json",
+  "title": "Effect Ledger Entry v1.0",
+  "type": "object",
+  "required": [
+    "effect_id",
+    "step_id",
+    "type",
+    "resource",
+    "reversible",
+    "observed_at_step"
+  ],
+  "properties": {
+    "effect_id": {
+      "type": "string"
+    },
+    "step_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "string"
+    },
+    "delta": {
+      "type": ["object", "null"]
+    },
+    "reversible": {
+      "type": "boolean"
+    },
+    "idempotency_key": {
+      "type": ["string", "null"]
+    },
+    "idem_key": {
+      "type": ["string", "null"]
+    },
+    "observed_at_step": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

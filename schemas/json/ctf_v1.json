@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.arcplus.internal/v1/ctf_v1.json",
+  "title": "Canonical Trace Format v1.0",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "agent",
+    "model",
+    "started_at",
+    "determinism_level",
+    "steps",
+    "effects",
+    "outcome"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": ["string", "null"]
+    },
+    "agent": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "git_sha": { "type": ["string", "null"] }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["provider", "model_id"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model_id": { "type": "string" },
+        "params": { "type": ["object", "null"] }
+      }
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "determinism_level": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3"]
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "step_v1.json" }
+    },
+    "effects": {
+      "type": "array",
+      "items": { "$ref": "effect_v1.json" }
+    },
+    "final_state_ref": {
+      "type": ["string", "null"]
+    },
+    "outcome": {
+      "type": "object",
+      "required": ["status_source"],
+      "anyOf": [
+        { "required": ["status"] },
+        { "required": ["outcome_status"] }
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "agent_error",
+            "escalated_to_human",
+            "timeout",
+            "aborted",
+            "unknown"
+          ]
+        },
+        "outcome_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "agent_error",
+            "escalated_to_human",
+            "timeout",
+            "aborted",
+            "unknown"
+          ]
+        },
+        "status_source": {
+          "type": "string",
+          "enum": [
+            "human_triage",
+            "reconciliation_webhook",
+            "agent_self_report",
+            "inferred_no_terminal_event"
+          ]
+        },
+        "cost_usd": { "type": ["number", "null"] },
+        "wall_ms": { "type": ["number", "integer", "null"] }
+      }
+    },
+    "redaction_key_id": {
+      "type": ["string", "null"]
+    }
+  }
+}

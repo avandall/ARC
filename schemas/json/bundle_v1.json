@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.arcplus.internal/v1/bundle_v1.json",
+  "title": "HarnessBundle v1.0",
+  "type": "object",
+  "required": [
+    "bundle_id",
+    "bundle_schema_version",
+    "generated_at",
+    "source_trace_id",
+    "target_service",
+    "determinism_level",
+    "steps",
+    "effects",
+    "signature"
+  ],
+  "properties": {
+    "bundle_id": {
+      "type": "string"
+    },
+    "bundle_schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source_trace_id": {
+      "type": "string"
+    },
+    "target_service": {
+      "type": "string"
+    },
+    "determinism_level": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3"]
+    },
+    "entrypoint": {
+      "type": ["object", "null"]
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "step_v1.json" }
+    },
+    "effects": {
+      "type": "array",
+      "items": { "$ref": "effect_v1.json" }
+    },
+    "cassettes": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["tool", "request_hash", "status"],
+        "properties": {
+          "tool": { "type": "string" },
+          "request_hash": { "type": "string" },
+          "response_body_ref": { "type": ["string", "null"] },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "state_snapshots": {
+      "type": ["object", "null"]
+    },
+    "invariants_applied": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "signature": {
+      "type": "object",
+      "required": ["alg", "key_id", "value"],
+      "properties": {
+        "alg": {
+          "type": "string",
+          "enum": ["HMAC-SHA256"]
+        },
+        "key_id": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    }
+  }
+}

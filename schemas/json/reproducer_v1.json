@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.arcplus.internal/v1/reproducer_v1.json",
+  "title": "Minimal Reproducer Spec v1.0",
+  "type": "object",
+  "required": [
+    "trace",
+    "determinism_level",
+    "faults",
+    "violated"
+  ],
+  "properties": {
+    "trace": { "type": "string" },
+    "determinism_level": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3"]
+    },
+    "faults": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["at_step", "type"],
+        "properties": {
+          "at_step": { "type": "integer" },
+          "type": { "type": "string" },
+          "tool": { "type": ["string", "null"] },
+          "params": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "violated": { "type": "string" },
+    "reproduce_rate": { "type": ["number", "null"] },
+    "confidence_interval": {
+      "type": ["array", "null"],
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "cost_usd": { "type": ["number", "null"] }
+  }
+}
