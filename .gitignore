@@ -6,3 +6,5 @@ package-lock.json
 .pytest_cache/
 .ruff_cache/
 .ralph/runs/
+__pycache__/
+*.pyc
