@@ -1,7 +1,8 @@
 # ARC — Autonomous Reliability & Chaos Harness for AI Agents
 
-[![PyPI version](https://img.shields.io/pypi/v/arc-agent.svg)](https://pypi.org/project/arc-agent/)
-[![Python versions](https://img.shields.io/pypi/pyversions/arc-agent.svg)](https://pypi.org/project/arc-agent/)
+[![PyPI version](https://img.shields.io/pypi/v/arc-reliability.svg)](https://pypi.org/project/arc-reliability/)
+[![Python versions](https://img.shields.io/pypi/pyversions/arc-reliability.svg)](https://pypi.org/project/arc-reliability/)
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://img.shields.io/badge/tests-90%20passed-brightgreen.svg)]()
 
@@ -22,12 +23,12 @@
 ## 📦 Installation
 
 ```bash
-pip install arc-agent
+pip install arc-reliability
 ```
 
 For development and testing:
 ```bash
-pip install "arc-agent[dev]"
+pip install "arc-reliability[dev]"
 ```
 
 ---
