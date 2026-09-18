@@ -41,7 +41,7 @@ wheels = [
 ]
 
 [[package]]
-name = "arc-agent"
+name = "arc-reliability"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

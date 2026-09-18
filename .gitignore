@@ -46,3 +46,4 @@ package-lock.json
 .ralph/runs/
 pipeline/.ralph/runs/
 pipeline/docs/runtime/session_live.log
+pipeline
