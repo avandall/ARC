@@ -26,7 +26,7 @@ def get_validator(schema_name: str) -> Draft202012Validator:
 
 
 def test_ctf_v1_valid_payload():
-    """Happy Path 1: Validate CTF v1.0 payload mẫu hợp lệ với đầy đủ metadata."""
+    """Happy Path 1: Validate sample valid CTF v1.0 payload with complete metadata."""
     validator = get_validator("ctf_v1.json")
     payload = {
         "trace_id": "0af7651916cd43dd8448eb211c80319c",
@@ -94,7 +94,7 @@ def test_ctf_v1_valid_payload():
 
 
 def test_postgresql_ddl_tables_and_rls_creation():
-    """Happy Path 2: Thực thi script schemas/sql/001_initial_schema.sql và kiểm tra 7 bảng + RLS policy."""
+    """Happy Path 2: Execute schemas/sql/001_initial_schema.sql script and verify 7 tables + RLS policy."""
     sql_script = pathlib.Path("schemas/sql/001_initial_schema.sql")
     assert sql_script.exists(), "001_initial_schema.sql file missing"
 
@@ -149,7 +149,7 @@ def test_postgresql_ddl_tables_and_rls_creation():
 
 
 def test_ctf_v1_invalid_outcome_status_rejected():
-    """Edge Case 1: Nạp payload CTF có outcome_status='halfway_done'."""
+    """Edge Case 1: Ingest CTF payload with invalid outcome_status='halfway_done'."""
     validator = get_validator("ctf_v1.json")
     payload = {
         "trace_id": "0af7651916cd43dd8448eb211c80319c",
@@ -170,7 +170,7 @@ def test_ctf_v1_invalid_outcome_status_rejected():
 
 
 def test_rejected_candidates_unique_hash_constraint():
-    """Edge Case 2: Thử chèn 2 bản ghi có cùng statement_hash vào bảng rejected_candidates."""
+    """Edge Case 2: Attempt inserting 2 records with identical statement_hash into rejected_candidates table."""
     # Reset table
     subprocess.run(
         ["psql", "-h", "localhost", "-U", "postgres", "-d", "arc_test", "-c", "TRUNCATE TABLE rejected_candidates;"],

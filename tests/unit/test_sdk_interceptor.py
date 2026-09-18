@@ -16,10 +16,10 @@ import arc.sdk as arc
 
 
 def test_python_sdk_agent_and_tool_decorators() -> None:
-    """Happy Path 1: Bọc hàm agent và tool bằng @arc.trace_agent và @arc.trace_tool.
+    """Happy Path 1: Wrap agent and tool functions with @arc.trace_agent and @arc.trace_tool.
 
-    Thực thi call: lookup(order_id='8842'). Kết quả: SDK tạo ra OTel span chuẩn,
-    trích xuất đúng tool name, input args, latency, và export ra CTF step dictionary.
+    Execute call: lookup(order_id='8842'). Result: SDK creates standard OTel span,
+    extracts tool name, input args, latency, and exports to CTF step dictionary.
     """
     @arc.trace_tool(name="lookup")
     def lookup(order_id: str) -> dict[str, Any]:
@@ -54,11 +54,11 @@ def test_python_sdk_agent_and_tool_decorators() -> None:
 
 
 def test_tier1_sanitizer_redacts_api_keys() -> None:
-    """Happy Path 2: Gọi tool với payload chứa pattern của secret.
+    """Happy Path 2: Call tool with payload containing secret patterns.
 
     Pattern: sk_live_1234567890abcdef12345678, AKIAIOSFODNN7EXAMPLE.
-    Kết quả: Payload được làm sạch tại nguồn, giá trị bí mật được thay thế bằng
-    placeholder [REDACTED:stripe_live_key] hoặc [REDACTED:aws_key].
+    Result: Payload is sanitized at source, secret values replaced with
+    placeholder [REDACTED:stripe_live_key] or [REDACTED:aws_key].
     """
     @arc.trace_tool(name="process_payment")
     def process_payment(api_key: str, aws_token: str, order_id: str) -> dict[str, Any]:
@@ -96,9 +96,9 @@ def test_tier1_sanitizer_redacts_api_keys() -> None:
 
 
 def test_interceptor_overhead_benchmark() -> None:
-    """Edge Case 1: Chạy 10.000 iterations của decorated tool calls.
+    """Edge Case 1: Run 10,000 iterations of decorated tool calls.
 
-    Đo lường overhead: p99 latency cộng thêm < 1.0ms, CPU overhead < 1.5%.
+    Measure overhead: p99 added latency < 1.0ms, CPU overhead < 1.5%.
     """
     @arc.trace_tool(name="fast_tool")
     def fast_tool(x: int) -> int:
@@ -138,10 +138,10 @@ def test_interceptor_overhead_benchmark() -> None:
 
 
 def test_interceptor_handles_tool_exception() -> None:
-    """Edge Case 2: Tool được bọc raise ConnectionResetError("Socket dropped").
+    """Edge Case 2: Wrapped tool raises ConnectionResetError("Socket dropped").
 
-    Kết quả: Interceptor bẫy exception, đánh dấu step outcome='error',
-    ghi exception traceback vào trace mà không làm sập tiến trình host.
+    Result: Interceptor traps exception, marks step outcome='error',
+    records exception traceback in trace without crashing host process.
     """
     @arc.trace_tool(name="flaky_network_call")
     def flaky_network_call() -> str:

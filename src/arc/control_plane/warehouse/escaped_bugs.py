@@ -90,7 +90,7 @@ class EscapedBugTracker:
         quarter: str | None = None,
         total_incidents: int | None = None,
     ) -> float:
-        """Calculates quarterly escaped_bug_rate = số escaped bug / tổng số incident có agent.
+        """Calculates quarterly escaped_bug_rate = number of escaped bugs / total agent incidents.
 
         Args:
             quarter: Target quarter filter (e.g. "2026-Q3").

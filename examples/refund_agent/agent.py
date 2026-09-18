@@ -15,7 +15,7 @@ from arc.sdk.interceptor import get_current_trace_context, trace_agent, trace_to
 # Invariant specification for INV-PAY-002
 INV_PAY_002_SPEC: dict[str, Any] = {
     "id": "INV-PAY-002",
-    "statement": "Tổng các effect financial.refund cho một order không vượt quá giá trị order",
+    "statement": "Total financial.refund effects for an order must not exceed order total value",
     "category": "conservation",
     "severity": "critical",
     "check": "sum([abs(e.delta.amount_cents) for e in effects if e.type == 'financial.refund']) <= order.total_cents",

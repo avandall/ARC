@@ -27,7 +27,7 @@ _tracer = otel_trace.get_tracer("arc_sdk", "0.1.0")
 
 
 class TraceContext:
-    """Quản lý trạng thái trace active trong context hiện tại."""
+    """Manages active trace state within the current execution context."""
 
     def __init__(
         self,
@@ -100,7 +100,7 @@ def get_current_trace() -> dict[str, Any] | None:
 
 
 class trace_agent:
-    """Decorator hoặc Context Manager bọc Agent execution."""
+    """Decorator or Context Manager wrapping Agent execution."""
 
     def __init__(
         self,
@@ -177,10 +177,9 @@ def trace_tool(
     redactor: Redactor | None = None,
     trap_exceptions: bool = True,
 ) -> Any:
-    """Decorator bọc Tool calls.
-
-    Thu thập span, latency, input args (được redact), output/exception,
-    và export ra CTF step dict. Bẫy exception mặc định để tránh sập host.
+    """Decorator wrapping Tool calls.
+    Collects span, latency, redacted input args, output/exception,
+    and exports a CTF step dict. Traps exceptions by default to avoid crashing the host.
     """
     tool_name_arg: str | None = None
     func_arg: Callable[..., Any] | None = None

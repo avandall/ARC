@@ -24,7 +24,7 @@ def test_cel_evaluator_conservation_rule() -> None:
 
     invariant = InvariantSpec(
         id="INV-PAY-002",
-        statement="Tổng các effect financial.refund cho một order không vượt quá giá trị order",
+        statement="Total financial.refund effects for an order must not exceed order total value",
         category="conservation",
         severity="critical",
         check="""

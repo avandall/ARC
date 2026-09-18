@@ -3,7 +3,7 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Bảng Traces (CTF Metadata)
+-- 1. Traces Table (CTF Metadata)
 CREATE TABLE IF NOT EXISTS traces (
   trace_id          TEXT PRIMARY KEY,
   session_id        TEXT,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS traces (
   final_state_ref   TEXT
 );
 
--- Row-Level Security (RLS) phân quyền nội bộ theo agent_name
+-- Row-Level Security (RLS) internal access policy by agent_name
 ALTER TABLE traces ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS agent_isolation_policy ON traces;
@@ -41,7 +41,7 @@ CREATE POLICY agent_isolation_policy ON traces
     OR agent_name = ANY(string_to_array(current_setting('arc.allowed_agents', true), ','))
   );
 
--- 2. Bảng Steps (Đơn vị nguyên tử & Fork Point tiềm năng)
+-- 2. Steps Table (Atomic Units & Potential Fork Points)
 CREATE TABLE IF NOT EXISTS steps (
   trace_id          TEXT NOT NULL REFERENCES traces(trace_id) ON DELETE CASCADE,
   step_id           INT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS steps (
   PRIMARY KEY (trace_id, step_id)
 );
 
--- 3. Bảng Effects (Effect Ledger - Sổ cái tác dụng phụ)
+-- 3. Effects Table (Side-Effect Ledger)
 CREATE TABLE IF NOT EXISTS effects (
   effect_id         TEXT PRIMARY KEY,
   trace_id          TEXT NOT NULL REFERENCES traces(trace_id) ON DELETE CASCADE,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS effects (
   observed_at_step  INT NOT NULL
 );
 
--- 4. Bảng Fork Runs (Quản lý các lượt chạy song song K-runs)
+-- 4. Fork Runs Table (Manages Parallel K-Runs)
 CREATE TABLE IF NOT EXISTS fork_runs (
   run_id            TEXT PRIMARY KEY,
   base_trace        TEXT NOT NULL REFERENCES traces(trace_id),
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS fork_runs (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. Bảng Invariant Candidates (Ứng viên Invariant được Miner đề xuất)
+-- 5. Invariant Candidates Table (Invariant Candidates Proposed by Miner)
 CREATE TABLE IF NOT EXISTS invariant_candidates (
   candidate_id      TEXT PRIMARY KEY,
   statement         TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS invariant_candidates (
   proposed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. Bảng Rejected Candidates (Dedup ứng viên bị từ chối - §8.3)
+-- 6. Rejected Candidates Table (Deduplication of Rejected Candidates - §8.3)
 CREATE TABLE IF NOT EXISTS rejected_candidates (
   statement_hash    TEXT PRIMARY KEY,
   original_candidate_id TEXT,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS rejected_candidates (
   rejected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. Bảng Lịch sử Escaped Bugs (§11.2)
+-- 7. Escaped Bugs History Table (§11.2)
 CREATE TABLE IF NOT EXISTS escaped_bugs (
   incident_id       TEXT PRIMARY KEY,
   trace_id          TEXT NOT NULL REFERENCES traces(trace_id),

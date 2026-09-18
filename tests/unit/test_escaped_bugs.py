@@ -23,9 +23,9 @@ def setup_clean_db():
 
 
 def test_tag_incident_escaped_bug(setup_clean_db):
-    """Happy Path 1: Chạy lệnh `arc incidents tag --trace 0af765... --escaped-bug --linked-invariant INV-PAY-002 --root-cause 'Missing idempotency header'`.
+    """Happy Path 1: Run `arc incidents tag --trace 0af765... --escaped-bug --linked-invariant INV-PAY-002 --root-cause 'Missing idempotency header'`.
 
-    Bản ghi được lưu vào bảng `escaped_bugs` và trường `false_negative` của `INV-PAY-002` trong catalog được cộng 1.
+    Record is stored in `escaped_bugs` table and `false_negative` count of `INV-PAY-002` in catalog is incremented by 1.
     """
     db = setup_clean_db
     trace_id = "0af7651916cd43dd8448eb211c80319c"
@@ -75,9 +75,9 @@ def test_tag_incident_escaped_bug(setup_clean_db):
 
 
 def test_quarterly_escaped_bug_rate_calculation(setup_clean_db):
-    """Happy Path 2: Nạp 10 incidents trong quý, trong đó 2 incidents được gắn nhãn escaped bug do agent gây ra.
+    """Happy Path 2: Ingest 10 incidents in a quarter, 2 of which are tagged as agent-caused escaped bugs.
 
-    Hàm tính metric trả về `escaped_bug_rate = 0.20`.
+    Metric calculation returns `escaped_bug_rate = 0.20`.
     """
     db = setup_clean_db
     quarter = "2026-Q3"
@@ -123,9 +123,9 @@ def test_quarterly_escaped_bug_rate_calculation(setup_clean_db):
 
 
 def test_tag_incident_with_non_existent_trace_id(setup_clean_db):
-    """Edge Case 1: Thử tag incident với trace_id không tồn tại trong database.
+    """Edge Case 1: Attempt to tag an incident with a non-existent trace_id in the database.
 
-    Lệnh trả về mã lỗi và thông báo `"Trace ID not found"`.
+    Command returns error code and message `"Trace ID not found"`.
     """
     result = runner.invoke(
         app,
@@ -145,9 +145,9 @@ def test_tag_incident_with_non_existent_trace_id(setup_clean_db):
 
 
 def test_tag_incident_without_linked_invariant(setup_clean_db):
-    """Edge Case 2: Tag một sự cố hoàn toàn mới chưa có invariant tương ứng (`linked-invariant=None`).
+    """Edge Case 2: Tag a new incident without an existing linked invariant (`linked-invariant=None`).
 
-    Hệ thống lưu bản ghi và tự động tạo gợi ý cho Invariant Miner khai thác postmortem này.
+    System persists record and generates suggestion for Invariant Miner postmortem extraction.
     """
     db = setup_clean_db
     trace_id = "trace_new_postmortem_123"

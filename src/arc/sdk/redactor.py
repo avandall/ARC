@@ -1,7 +1,7 @@
 """Tier 1 Redactor / Sanitizer module for arc_sdk.
 
-Quét và làm mờ các bí mật (API keys, tokens, high-entropy secrets)
-ngay tại nguồn trước khi serialize ra mạng hoặc lưu vào Trace Warehouse.
+Scans and redacts secrets (API keys, tokens, high-entropy secrets)
+at source before serialization to network or Trace Warehouse.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def calculate_shannon_entropy(s: str) -> float:
 
 
 class Redactor:
-    """Tier 1 Redactor làm sạch payload dữ liệu trước khi ghi nhận trace."""
+    """Tier 1 Redactor sanitizes data payloads before recording traces."""
 
     def __init__(
         self,
@@ -61,7 +61,7 @@ class Redactor:
         self.min_entropy_length: int = min_entropy_length
 
     def redact_text(self, text: str) -> str:
-        """Quét và làm sạch một chuỗi văn bản."""
+        """Scan and sanitize a text string."""
         if not text:
             return text
 
@@ -87,7 +87,7 @@ class Redactor:
         return result
 
     def redact(self, data: Any, seen: set[int] | None = None) -> Any:
-        """Hàm đệ quy làm sạch bất kỳ cấu trúc dữ liệu nào (dict, list, str, tuple)."""
+        """Recursively sanitizes any data structure (dict, list, str, tuple, set)."""
         if seen is None:
             seen = set()
 
@@ -117,5 +117,5 @@ _default_redactor = Redactor()
 
 
 def redact_payload(data: Any) -> Any:
-    """Utility function cho phép redact payload theo bộ luật mặc định."""
+    """Utility function to redact payload using default redaction rules."""
     return _default_redactor.redact(data)

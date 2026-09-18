@@ -19,7 +19,7 @@ This example demonstrates the complete ARC Agent Reliability Harness lifecycle:
 Execute the standard refund workflow for Order #8842 without any fault injection:
 
 ```bash
-python3 examples/refund-agent/agent.py
+python3 examples/refund_agent/agent.py
 ```
 
 Expected Output:
@@ -71,7 +71,7 @@ Export the minimal reproducer spec `arc-repro-8842.yaml`:
 
 ```bash
 # Generated artifact location
-cat examples/refund-agent/arc-repro-8842.yaml
+cat examples/refund_agent/arc-repro-8842.yaml
 ```
 
 ---
@@ -80,7 +80,7 @@ cat examples/refund-agent/arc-repro-8842.yaml
 Replay the defect using the CLI `arc repro` command:
 
 ```bash
-arc repro --config examples/refund-agent/arc-repro-8842.yaml
+arc repro --config examples/refund_agent/arc-repro-8842.yaml
 ```
 
 ---
@@ -89,7 +89,7 @@ arc repro --config examples/refund-agent/arc-repro-8842.yaml
 
 ```yaml
 id: INV-PAY-002
-statement: "Tổng các effect financial.refund cho một order không vượt quá giá trị order"
+statement: "Total financial.refund effects for an order must not exceed order total value"
 category: conservation
 severity: critical
 check: |
