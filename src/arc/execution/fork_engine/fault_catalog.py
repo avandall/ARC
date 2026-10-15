@@ -29,6 +29,11 @@ class FaultType(str, Enum):
     TYPE_COERCION = "type_coercion"
     BOUNDARY_VALUE = "boundary_value"
 
+    # Group C: Concurrency & Idempotency Faults (F8)
+    DUPLICATE_ACTION = "duplicate_action"    # Tool executed twice (models agent retry)
+    PARTIAL_SUCCESS = "partial_success"      # First write committed, second write fails
+    CONCURRENT_WRITE = "concurrent_write"   # Concurrent mutation to same resource
+
 
 INFRA_FAULTS: set[str] = {
     FaultType.TIMEOUT_BEFORE_COMMIT.value,
@@ -46,6 +51,14 @@ SEMANTIC_FAULTS: set[str] = {
     FaultType.TYPE_COERCION.value,
     FaultType.BOUNDARY_VALUE.value,
 }
+
+# F8: Group C — Concurrency & Idempotency Faults
+CONCURRENCY_FAULTS: set[str] = {
+    FaultType.DUPLICATE_ACTION.value,
+    FaultType.PARTIAL_SUCCESS.value,
+    FaultType.CONCURRENT_WRITE.value,
+}
+
 
 
 class FaultSpec:

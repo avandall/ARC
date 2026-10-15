@@ -211,8 +211,51 @@ class FaultInjector:
             res[target_field] = boundary_val
             return res
 
+        # ── Group C: Concurrency & Idempotency Faults (F8) ────────────────────
+
+        if fault_type == FaultType.DUPLICATE_ACTION.value:
+            # Simulate an agent retry after receiving a timeout — the tool executes twice.
+            # Both executions are committed and recorded in the ledger, making idempotency
+            # violations visible in invariant evaluation.
+            self.ledger.record_effect(tool_name=tool_name, arguments=args, step_id=step_id)
+            self.ledger.record_effect(
+                tool_name=tool_name,
+                arguments=args,
+                step_id=step_id,
+                observed_at_step=step_id,
+            )
+            return {
+                "status": "ok",
+                "status_code": 200,
+                "fault": fault_type,
+                "note": "duplicate_action: tool executed twice — both commits recorded in ledger",
+            }
+
+        if fault_type == FaultType.PARTIAL_SUCCESS.value:
+            # Write A committed successfully, Write B failed.
+            # One ledger entry is recorded (Write A), then a 500 is returned (Write B failed).
+            self.ledger.record_effect(tool_name=tool_name, arguments=args, step_id=step_id)
+            return {
+                "status_code": 500,
+                "error": "Partial success: first mutation committed, second mutation failed",
+                "fault": fault_type,
+                "partial_commit": True,
+            }
+
+        if fault_type == FaultType.CONCURRENT_WRITE.value:
+            # Another process wrote to the same resource between read and write.
+            # No effect is committed — caller receives a stale-write conflict error.
+            conflict_resource = args.get("order_id") or args.get("resource_id") or "unknown"
+            return {
+                "status_code": 409,
+                "error": f"Conflict: resource '{conflict_resource}' was modified concurrently",
+                "fault": fault_type,
+                "conflict_resource": conflict_resource,
+            }
+
         # Default fallback
         return self._execute_normal(tool_name, args, step_id, default_executor)
+
 
     def _get_baseline_response(
         self,

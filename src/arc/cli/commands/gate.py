@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from typing import Any
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from arc.cli.commands.repro import find_trace_file
 from arc.execution.fork_engine.gate_evaluator import CIGateExitCode, GateEvaluator
 
 console = Console()
@@ -42,13 +47,86 @@ def gate_command(
     ),
 ) -> None:
     """Run ARC CI Gate evaluation on trace and exit with standard POSIX code (0/1/2/3)."""
+    actual_profile = profile if isinstance(profile, str) else str(getattr(profile, "default", "smoke"))
+    actual_budget = budget_usd if isinstance(budget_usd, (int, float)) else getattr(budget_usd, "default", None)
+    actual_trace = str(trace) if isinstance(trace, (str, Path)) else getattr(trace, "default", None)
+    actual_ci_lower = float(baseline_ci_lower if isinstance(baseline_ci_lower, (int, float)) else getattr(baseline_ci_lower, "default", 0.0))
+    actual_ci_upper = float(baseline_ci_upper if isinstance(baseline_ci_upper, (int, float)) else getattr(baseline_ci_upper, "default", 0.0))
+
     evaluator = GateEvaluator(
-        profile=profile,
-        budget_usd=budget_usd,
-        baseline_ci=(baseline_ci_lower, baseline_ci_upper),
+        profile=actual_profile,
+        budget_usd=actual_budget,
+        baseline_ci=(actual_ci_lower, actual_ci_upper),
     )
 
-    result = evaluator.evaluate(trace_id=trace)
+    cwd = Path.cwd()
+    trace_ref = actual_trace or "trace_ci_gate"
+    trace_file = find_trace_file(trace_ref, cwd) if actual_trace else None
+
+    branch_executor = None
+    fault_catalog = None
+
+    if trace_file is not None and trace_file.exists():
+        try:
+            from arc.execution.fork_engine.fault_catalog import FaultCatalog, FaultSpec
+            from arc.execution.sandbox_runner.cassette_player import CassettePlayer, CassetteRecord
+            from arc.execution.sandbox_runner.runner import SandboxRunner
+
+            trace_json = json.loads(trace_file.read_text(encoding="utf-8"))
+            steps = trace_json.get("steps", [])
+            cassette_records: list[CassetteRecord] = [
+                CassetteRecord(
+                    tool=str(s["request"]["tool"]),
+                    request_args=s["request"].get("args", {}),
+                    response=s.get("response", {"status": "ok"}),
+                )
+                for s in steps
+                if isinstance(s.get("request"), dict) and "tool" in s["request"]
+            ]
+            cassette_player = CassettePlayer(records=cassette_records) if cassette_records else None
+
+            # Look up target invariant from trace or default
+            trace_inv = trace_json.get("violated_invariant") or trace_json.get("invariant") or "INV-GATE-001"
+            target_inv: dict[str, Any] = {
+                "id": str(trace_inv),
+                "statement": "Tool executions must not produce unhandled mutations or errors",
+                "category": "safety",
+                "check": "len([e for e in effects if e.get('status') == 'error']) == 0",
+                "severity": "critical",
+            }
+
+            fault_catalog = FaultCatalog()
+            fault_catalog.add_fault(FaultSpec(at_step=1, fault_type="timeout_after_commit"))
+
+            def _gate_branch_executor(branch_id: int, spec: FaultSpec) -> dict[str, Any]:
+                runner = SandboxRunner()
+                res = runner.run_with_faults(
+                    fault_spec=[spec.to_dict()],
+                    target_invariant=target_inv,
+                    cassette_player=cassette_player,
+                )
+                violations = [res["violated_invariant"]] if not res.get("passed", True) else []
+                return {
+                    "branch_id": branch_id,
+                    "status": "success",
+                    "fault_applied": spec.to_dict(),
+                    "violations": violations,
+                    "effects": res.get("effects", []),
+                    "cost_usd": 0.001,
+                    "tokens": 40,
+                    "duration_ms": int(res.get("eval_result", {}).get("exec_time_ms", 10)),
+                }
+
+            branch_executor = _gate_branch_executor
+            console.print(f"[dim]Loaded trace from: {trace_file.name} ({len(cassette_records)} steps)[/dim]")
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[dim yellow](Unable to construct branch executor from trace: {exc})[/dim yellow]")
+
+    result = evaluator.evaluate(
+        branch_executor=branch_executor,
+        fault_catalog=fault_catalog,
+        trace_id=trace,
+    )
 
     table = Table(title=f"ARC CI Gate Summary [Profile: {profile.upper()}]")
     table.add_column("Property", style="cyan", no_wrap=True)

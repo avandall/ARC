@@ -6,6 +6,7 @@ from arc.cli.commands.catalog import catalog_app
 from arc.cli.commands.debug import debug_command
 from arc.cli.commands.gate import gate_command
 from arc.cli.commands.incidents import incidents_app
+from arc.cli.commands.minimize import minimize_command
 from arc.cli.commands.repro import repro_command
 
 app = typer.Typer(
@@ -15,6 +16,7 @@ app = typer.Typer(
 )
 
 app.command("repro")(repro_command)
+app.command("minimize")(minimize_command)
 app.command("debug")(debug_command)
 app.command("gate")(gate_command)
 app.add_typer(catalog_app, name="catalog")

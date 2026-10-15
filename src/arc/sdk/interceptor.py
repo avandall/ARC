@@ -11,7 +11,7 @@ import time
 import traceback
 import uuid
 from collections.abc import Callable
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
 from types import TracebackType
 from typing import Any, Literal, TypeVar, cast
@@ -23,7 +23,7 @@ from arc.sdk.redactor import Redactor, redact_payload
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_tracer = otel_trace.get_tracer("arc_sdk", "0.1.0")
+_tracer = otel_trace.get_tracer("arc_sdk", "0.1.1")
 
 
 class TraceContext:
@@ -99,6 +99,31 @@ def get_current_trace() -> dict[str, Any] | None:
     return ctx.to_ctf_dict()
 
 
+def push_trace_to_collector(
+    trace_payload: dict[str, Any], collector_url: str, timeout: float = 3.0
+) -> bool:
+    """Sends CTF v1.0 trace dictionary to the ARC Collector REST API."""
+    import json
+    import urllib.request
+
+    url = collector_url.rstrip("/")
+    if not url.endswith("/v1/collector/traces"):
+        url = f"{url}/v1/collector/traces"
+
+    try:
+        data = json.dumps(trace_payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status in (200, 201, 202)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 class trace_agent:
     """Decorator or Context Manager wrapping Agent execution."""
 
@@ -109,14 +134,17 @@ class trace_agent:
         trace_id: str | None = None,
         model_provider: str = "openai",
         model_id: str = "gpt-4o",
+        collector_url: str | None = None,
     ) -> None:
         self.name: str = name
         self.version: str = version
         self.trace_id: str | None = trace_id
         self.model_provider: str = model_provider
         self.model_id: str = model_id
+        import os
+        self.collector_url: str | None = collector_url or os.environ.get("ARC_COLLECTOR_URL")
         self.ctx: TraceContext | None = None
-        self._token: Any = None
+        self._token: Token[TraceContext | None] | None = None
 
     def __enter__(self) -> TraceContext:
         self.ctx = TraceContext(
@@ -137,6 +165,8 @@ class trace_agent:
     ) -> Literal[False]:
         if exc_val is not None and self.ctx is not None:
             self.ctx.outcome_status = "agent_error"
+        if self.collector_url and self.ctx is not None:
+            _ = push_trace_to_collector(self.ctx.to_ctf_dict(), self.collector_url)
         if self._token is not None:
             _current_trace_context.reset(self._token)
         return False
@@ -167,6 +197,8 @@ class trace_agent:
                     span.record_exception(exc)
                     raise
                 finally:
+                    if self.collector_url:
+                        _ = push_trace_to_collector(ctx.to_ctf_dict(), self.collector_url)
                     _current_trace_context.reset(token)
 
         return cast(F, wrapper)

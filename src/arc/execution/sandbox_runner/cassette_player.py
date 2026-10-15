@@ -200,6 +200,17 @@ class CassettePlayer:
             model_fn = self.tool_models[tool_name]
             return model_fn(tool_name, args)
 
+        # Strategy 3b: Global ToolModel Registry Fallback (§3.3, §7.4)
+        try:
+            from arc.execution.tool_models.base import registry
+            if tool_name in registry:
+                self.tool_model_fallback_matches += 1
+                model_cls = registry[tool_name]
+                model_instance = model_cls().clone_fresh_state()
+                return model_instance.handle(args)
+        except Exception:
+            pass
+
         # Strategy 4: Transparent Abort
         self.miss_count += 1
         raise CassetteMissException(tool_name=tool_name, args=args)

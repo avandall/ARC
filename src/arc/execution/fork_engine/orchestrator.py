@@ -3,6 +3,16 @@
 Orchestrates K parallel independent branch executions from a fork point,
 monitors budget limits, filters aborted branches, computes valid sample size N_valid,
 and calculates 95% Wilson Score Confidence Intervals.
+
+F3: InvariantEvaluator + QuarantineManager are now wired into the branch pipeline.
+    If a branch executor returns an "effects" key, the orchestrator automatically
+    runs InvariantEvaluator on those effects and merges the result into "violations".
+    This means violations are computed deterministically from ledger evidence,
+    not asserted as opaque string IDs by the executor.
+
+F5: default_simulated_branch_executor (which hardcoded violations: ["INV-TIMEOUT-001"])
+    has been replaced by default_dry_run_executor — a minimal stub that returns empty
+    violations and effects, making it clear that real analysis requires a real executor.
 """
 
 from __future__ import annotations
@@ -74,27 +84,46 @@ class ForkRunResult:
 BranchExecutorCallable = Callable[[int, FaultSpec], dict[str, Any]]
 
 
-def default_simulated_branch_executor(
+# ── F5: Replace hardcoded default executor ───────────────────────────────────
+
+def default_dry_run_executor(
     branch_id: int,
     fault_spec: FaultSpec,
 ) -> dict[str, Any]:
-    """Default simulated worker executing a branch with a given fault_spec."""
-    # Base simulated cost
-    cost_usd = 0.05
-    # Simulated execution result
+    """Minimal dry-run stub that produces no fake violations or effects.
+
+    F5 change: Replaces the old default_simulated_branch_executor which
+    hardcoded violations=["INV-TIMEOUT-001"] regardless of actual execution,
+    making ForkOrchestrator results meaningless without a real executor.
+
+    For actual analysis, callers must supply a real branch_executor that:
+      1. Calls SandboxRunner.run_with_faults(fault_spec, target_invariant)
+      2. Returns a dict with "effects" and/or "violations" keys.
+    """
     return {
         "branch_id": branch_id,
         "status": "success",
         "fault_applied": fault_spec.to_dict(),
-        "violations": ["INV-TIMEOUT-001"],
-        "cost_usd": cost_usd,
-        "tokens": 120,
-        "duration_ms": 150,
+        "violations": [],   # no fake violations
+        "effects": [],      # no fake effects
+        "cost_usd": 0.0,
+        "tokens": 0,
+        "duration_ms": 0,
     }
 
 
+# Keep old name as alias so existing callers don't break immediately
+default_simulated_branch_executor = default_dry_run_executor
+
+
 class ForkOrchestrator:
-    """Orchestrates K parallel independent branch executions from a fork point."""
+    """Orchestrates K parallel independent branch executions from a fork point.
+
+    F3: Accepts an optional invariant_catalog. When a branch executor returns
+    an "effects" list, the orchestrator runs InvariantEvaluator on those effects
+    and merges computed violation IDs into the branch result's "violations" list.
+    This makes violation detection deterministic and driven by actual ledger state.
+    """
 
     def __init__(
         self,
@@ -103,6 +132,7 @@ class ForkOrchestrator:
         budget_tokens: int | None = None,
         max_seconds: float | None = None,
         max_workers: int = 20,
+        invariant_catalog: list[dict[str, Any]] | None = None,   # F3
     ) -> None:
         self.k = k
         self.max_workers = min(max_workers, k) if k > 0 else 1
@@ -111,6 +141,52 @@ class ForkOrchestrator:
             budget_tokens=budget_tokens,
             max_seconds=max_seconds,
         )
+        # F3: InvariantEvaluator wiring
+        self._invariant_catalog: list[dict[str, Any]] = list(invariant_catalog or [])
+        self._evaluator: Any = None   # lazy-init to avoid circular imports
+        self._quarantine: Any = None  # lazy-init
+
+    # ── F3: Invariant evaluation helper ──────────────────────────────────────
+
+    def _ensure_evaluator(self) -> None:
+        """Lazy-initialises InvariantEvaluator and QuarantineManager."""
+        if self._evaluator is None:
+            from arc.execution.invariant_engine.evaluator import InvariantEvaluator
+            from arc.execution.invariant_engine.quarantine import QuarantineManager
+            self._evaluator = InvariantEvaluator()
+            self._quarantine = QuarantineManager()
+
+    def _evaluate_branch_invariants(
+        self,
+        effects: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
+    ) -> list[str]:
+        """Runs InvariantEvaluator over effect ledger entries.
+
+        Returns list of violated invariant IDs that should block CI
+        (quarantined invariants are excluded via QuarantineManager.should_block_ci).
+        """
+        if not self._invariant_catalog:
+            return []
+
+        self._ensure_evaluator()
+        violated_ids: list[str] = []
+
+        for inv in self._invariant_catalog:
+            try:
+                result, block_ci = self._quarantine.run_shadow_quarantine(
+                    inv, self._evaluator, effects, context
+                )
+                if result.violated and block_ci:
+                    inv_id = str(inv.get("id", "UNKNOWN"))
+                    violated_ids.append(inv_id)
+            except Exception:  # noqa: BLE001, S110
+                # Never let evaluator errors kill a branch
+                pass
+
+        return violated_ids
+
+    # ── Main fork execution ───────────────────────────────────────────────────
 
     def run_fork(
         self,
@@ -121,9 +197,12 @@ class ForkOrchestrator:
         """Runs K parallel branches from a fork point with the specified fault spec.
 
         Args:
-            fault_spec: The fault spec object or dict to inject into each branch.
-            branch_executor: Optional custom callable to execute each branch.
-            run_id: Optional unique identifier for this fork run.
+            fault_spec:       The fault spec object or dict to inject into each branch.
+            branch_executor:  Optional custom callable to execute each branch.
+                              If the returned dict contains an "effects" key (list of
+                              effect ledger entries), InvariantEvaluator will run on
+                              those effects and merge results into "violations".
+            run_id:           Optional unique identifier for this fork run.
 
         Returns:
             ForkRunResult containing execution status, sample counts, and Wilson CIs.
@@ -135,7 +214,7 @@ class ForkOrchestrator:
             else FaultSpec.from_dict(fault_spec)
         )
 
-        executor_func = branch_executor or default_simulated_branch_executor
+        executor_func = branch_executor or default_dry_run_executor
 
         branch_outcomes: list[dict[str, Any]] = []
 
@@ -164,6 +243,18 @@ class ForkOrchestrator:
                     "tokens": 0,
                     "duration_ms": 0,
                 }
+
+            # ── F3: If executor returned raw effects, evaluate invariants ─────
+            if "effects" in res and self._invariant_catalog:
+                computed_violations = self._evaluate_branch_invariants(
+                    effects=res["effects"],
+                    context=res.get("context"),
+                )
+                # Merge computed violations with any string IDs already in result
+                existing: list[str] = res.get("violations") or []
+                merged = list({*existing, *computed_violations})
+                res["violations"] = merged
+            # ─────────────────────────────────────────────────────────────────
 
             # Record usage in budget enforcer
             cost_usd = float(res.get("cost_usd", 0.0))
@@ -260,11 +351,16 @@ class ForkOrchestrator:
         for inv_id, hits in violation_counts.items():
             rate = round(hits / n_valid, 3) if n_valid > 0 else 0.0
             ci_lower, ci_upper = calculate_wilson_score(hits, n_valid)
+            # F3: Attach severity from invariant catalog if available
+            inv_meta = next(
+                (inv for inv in self._invariant_catalog if inv.get("id") == inv_id), {}
+            )
             violations_dict[inv_id] = {
                 "hits": hits,
                 "n_valid": n_valid,
                 "violation_rate": rate,
                 "wilson_ci": [ci_lower, ci_upper],
+                "severity": inv_meta.get("severity", "critical"),  # F3+F6 data
             }
 
         return ForkRunResult(

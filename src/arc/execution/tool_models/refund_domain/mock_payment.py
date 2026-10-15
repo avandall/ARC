@@ -20,6 +20,10 @@ SUPPORTED_FAULTS: set[str] = {
     "empty_list",
     "type_coercion",
     "boundary_value",
+    # F8: Group C — Concurrency & Idempotency Faults
+    "duplicate_action",
+    "partial_success",
+    "concurrent_write",
 }
 
 

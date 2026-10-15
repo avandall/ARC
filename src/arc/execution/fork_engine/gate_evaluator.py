@@ -81,10 +81,13 @@ class GateEvaluator:
         profile: str = "smoke",
         budget_usd: float | None = None,
         baseline_ci: tuple[float, float] | list[float] = (0.0, 0.0),
+        invariant_catalog: dict[str, dict[str, Any]] | None = None,  # F6
     ) -> None:
         self.profile = profile.lower()
         self.budget_usd = budget_usd
         self.baseline_ci = (float(baseline_ci[0]), float(baseline_ci[1]))
+        # F6: Map inv_id -> InvariantSpec dict for severity lookup
+        self.invariant_catalog: dict[str, dict[str, Any]] = invariant_catalog or {}
 
         # Profile configurations (§11.1)
         if self.profile == "smoke":
@@ -93,6 +96,7 @@ class GateEvaluator:
             self.k = 20
         else:
             self.k = 3
+
 
     def evaluate(
         self,
@@ -189,8 +193,12 @@ class GateEvaluator:
         has_confirmed_critical_violation = False
 
         for inv_id, vdata in run_result.violations.items():
-            severity = vdata.get("severity", "critical")
+            # F6: Priority order: invariant_catalog spec > vdata dict > default "critical"
+            # Previously this always defaulted to "critical", masking lower-severity violations.
+            inv_meta = self.invariant_catalog.get(str(inv_id), {})
+            severity = inv_meta.get("severity") or vdata.get("severity") or "critical"
             ci = vdata.get("wilson_ci", [0.0, 0.0])
+
 
             overlaps = check_wilson_overlap(ci, self.baseline_ci)
             vdata_entry = dict(vdata)

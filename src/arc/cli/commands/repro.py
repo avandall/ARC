@@ -151,7 +151,7 @@ def generate_actionable_fix(
     ]
 
 
-def _find_trace_file(trace_ref: str, cwd: Path) -> Path | None:
+def find_trace_file(trace_ref: str, cwd: Path) -> Path | None:
     """Locate CTF trace file on disk from trace_id or file path."""
     if not trace_ref or trace_ref == "N/A":
         return None
@@ -180,36 +180,50 @@ def _find_trace_file(trace_ref: str, cwd: Path) -> Path | None:
     return None
 
 
-def _extract_invariant_spec(invariant_id: str, cwd: Path) -> dict[str, str] | None:
+_find_trace_file = find_trace_file
+
+
+def extract_invariant_spec(invariant_id: str, cwd: Path) -> dict[str, str] | None:
     """Extract invariant definition from codebase (statement, check, severity) via regex matching."""
     if not invariant_id or invariant_id == "N/A":
         return None
 
-    search_dirs = [cwd / "tests", cwd / "app", cwd / "src", cwd]
+    import os
+    ignore_dirs = {".venv", "venv", ".git", "__pycache__", "node_modules", "dist", "build"}
+    search_dirs = [d for d in [cwd / "src", cwd / "tests", cwd / "app"] if d.exists()]
+    if not search_dirs:
+        search_dirs = [cwd]
+
     for sdir in search_dirs:
-        if not sdir.exists():
-            continue
-        for py_file in sdir.rglob("*.py"):
-            try:
-                text = py_file.read_text(encoding="utf-8", errors="replace")
-                if invariant_id in text:
-                    pos = text.find(invariant_id)
-                    block = text[max(0, pos - 100): min(len(text), pos + 500)]
-                    spec: dict[str, str] = {"id": invariant_id}
-                    stmt_match = re.search(r'"statement":\s*"([^"]+)"', block)
-                    if stmt_match:
-                        spec["statement"] = stmt_match.group(1)
-                    check_match = re.search(r'"check":\s*"([^"]+)"', block)
-                    if check_match:
-                        spec["check"] = check_match.group(1)
-                    sev_match = re.search(r'"severity":\s*"([^"]+)"', block)
-                    if sev_match:
-                        spec["severity"] = sev_match.group(1)
-                    if len(spec) > 1:
-                        return spec
-            except OSError:
-                continue
+        for root, dirs, files in os.walk(sdir):
+            dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+            for f in files:
+                if not f.endswith(".py"):
+                    continue
+                py_file = Path(root) / f
+                try:
+                    text = py_file.read_text(encoding="utf-8", errors="replace")
+                    if invariant_id in text:
+                        pos = text.find(invariant_id)
+                        block = text[max(0, pos - 100): min(len(text), pos + 500)]
+                        spec: dict[str, str] = {"id": invariant_id}
+                        stmt_match = re.search(r'"statement":\s*"([^"]+)"', block)
+                        if stmt_match:
+                            spec["statement"] = stmt_match.group(1)
+                        check_match = re.search(r'"check":\s*"([^"]+)"', block)
+                        if check_match:
+                            spec["check"] = check_match.group(1)
+                        sev_match = re.search(r'"severity":\s*"([^"]+)"', block)
+                        if sev_match:
+                            spec["severity"] = sev_match.group(1)
+                        if len(spec) > 1:
+                            return spec
+                except OSError:
+                    continue
     return None
+
+
+_extract_invariant_spec = extract_invariant_spec
 
 
 def _locate_in_codebase(
@@ -233,8 +247,20 @@ def _locate_in_codebase(
         ".mypy_cache",
     }
 
-    candidate_dirs = [cwd / "app", cwd / "src", cwd / "pkg", cwd / "lib", cwd / "tests", cwd]
+    candidate_dirs = [cwd / "src", cwd / "app", cwd / "pkg", cwd / "lib", cwd / "tests"]
     search_dirs = [d for d in candidate_dirs if d.exists()]
+    if not search_dirs:
+        search_dirs = [cwd]
+
+    import os
+    python_files: list[Path] = []
+    for sdir in search_dirs:
+        for root, dirs, files in os.walk(sdir):
+            dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+            for f in files:
+                if f.endswith(".py"):
+                    python_files.append(Path(root) / f)
+
     visited_files: set[Path] = set()
     matches: list[dict[str, Any]] = []
 
@@ -252,73 +278,171 @@ def _locate_in_codebase(
         pattern_trace_tool = re.compile(rf'@trace_tool\([^)]*name=["\']{escaped_term}["\']')
         pattern_word = re.compile(rf'\b{escaped_term}\b')
 
-        for search_dir in search_dirs:
-            for py_file in search_dir.rglob("*.py"):
-                canonical_path = py_file.resolve()
-                if any(part in ignore_dirs for part in canonical_path.parts):
-                    continue
-                if canonical_path in visited_files:
-                    continue
+        for py_file in python_files:
+            canonical_path = py_file.resolve()
+            if canonical_path in visited_files:
+                continue
 
-                try:
-                    content = py_file.read_text(encoding="utf-8", errors="replace")
-                    lines = content.splitlines()
-                except OSError:
-                    continue
+            try:
+                content = py_file.read_text(encoding="utf-8", errors="replace")
+                lines = content.splitlines()
+            except OSError:
+                continue
 
-                found_idx: int | None = None
-                is_direct_definition = False
+            found_idx: int | None = None
+            is_direct_definition = False
 
+            for idx, line in enumerate(lines):
+                if pattern_trace_tool.search(line):
+                    found_idx = idx
+                    is_direct_definition = True
+                    break
+
+            if found_idx is None:
                 for idx, line in enumerate(lines):
-                    if pattern_trace_tool.search(line):
+                    if pattern_def.search(line):
                         found_idx = idx
                         is_direct_definition = True
                         break
 
-                if found_idx is None:
-                    for idx, line in enumerate(lines):
-                        if pattern_def.search(line):
-                            found_idx = idx
-                            is_direct_definition = True
-                            break
+            if found_idx is None:
+                for idx, line in enumerate(lines):
+                    if pattern_word.search(line):
+                        found_idx = idx
+                        break
 
-                if found_idx is None:
-                    for idx, line in enumerate(lines):
-                        if pattern_word.search(line):
-                            found_idx = idx
-                            break
+            if found_idx is not None:
+                visited_files.add(canonical_path)
+                start_idx = max(0, found_idx - 2)
+                end_idx = min(len(lines), found_idx + 6)
+                snippet = "\n".join(lines[start_idx:end_idx])
 
-                if found_idx is not None:
-                    visited_files.add(canonical_path)
-                    start_idx = max(0, found_idx - 2)
-                    end_idx = min(len(lines), found_idx + 6)
-                    snippet = "\n".join(lines[start_idx:end_idx])
+                try:
+                    rel_path = py_file.relative_to(cwd)
+                except ValueError:
+                    rel_path = py_file
 
-                    try:
-                        rel_path = py_file.relative_to(cwd)
-                    except ValueError:
-                        rel_path = py_file
-
-                    matches.append(
-                        {
-                            "term": term,
-                            "file": str(rel_path),
-                            "line": found_idx + 1,
-                            "matched_line": lines[found_idx].strip(),
-                            "snippet": snippet,
-                            "snippet_start": start_idx + 1,
-                            "is_definition": is_direct_definition,
-                        }
-                    )
-                    if len(matches) >= max_matches:
-                        return matches
+                matches.append(
+                    {
+                        "term": term,
+                        "file": str(rel_path),
+                        "line": found_idx + 1,
+                        "matched_line": lines[found_idx].strip(),
+                        "snippet": snippet,
+                        "snippet_start": start_idx + 1,
+                        "is_definition": is_direct_definition,
+                    }
+                )
+                if len(matches) >= max_matches:
+                    return matches
 
     return matches
+
+
+
+
+def _run_sandbox_execution(
+    faults_list: list[dict[str, Any]],
+    violated_invariant: str,
+    trace_file: Any,
+    console: Any,
+    inv_spec: dict[str, str] | None = None,
+) -> None:
+    """F4: Execute fault injection in real SandboxRunner and print result panel.
+
+    This function performs the actual zero-prod replay using SandboxRunner.run_with_faults(),
+    evaluating the real invariant check expression against recorded ledger effects.
+    """
+    try:
+        from arc.execution.fork_engine.fault_catalog import FaultCatalog
+        from arc.execution.sandbox_runner.runner import SandboxRunner
+
+        catalog = FaultCatalog.from_list(faults_list) if faults_list else FaultCatalog()
+
+        # Build CassettePlayer from trace file if available
+        cassette_player = None
+        if trace_file is not None:
+            try:
+                from arc.execution.sandbox_runner.cassette_player import CassettePlayer
+                trace_json = json.loads(trace_file.read_text(encoding="utf-8"))
+                steps = trace_json.get("steps", [])
+                cassette_records = [
+                    {
+                        "tool": s["request"]["tool"],
+                        "request_args": s["request"].get("args", {}),
+                        "response": s.get("response", {"status": "ok"}),
+                    }
+                    for s in steps
+                    if isinstance(s.get("request"), dict) and "tool" in s["request"]
+                ]
+                if cassette_records:
+                    cassette_player = CassettePlayer(records=cassette_records)
+            except Exception:  # noqa: BLE001, S110
+                pass  # trace unreadable — proceed without cassette
+
+        # Build invariant spec (use extracted real spec if available)
+        if inv_spec and inv_spec.get("check"):
+            inv_spec_for_run: dict[str, Any] = {
+                "id": inv_spec.get("id") or violated_invariant,
+                "statement": inv_spec.get("statement", violated_invariant),
+                "category": inv_spec.get("category", "safety"),
+                "check": inv_spec["check"],
+                "severity": inv_spec.get("severity", "critical"),
+            }
+        elif violated_invariant and violated_invariant != "N/A":
+            # If invariant name implies idempotency/duplicate, check at most 1 effect
+            if any(term in violated_invariant.lower() for term in ["idem", "duplicate", "pay", "refund"]):
+                fallback_check = "len(effects) <= 1"
+            else:
+                fallback_check = "len([e for e in effects if e.get('status') == 'error']) == 0"
+            inv_spec_for_run = {
+                "id": violated_invariant,
+                "statement": violated_invariant,
+                "category": "safety",
+                "check": fallback_check,
+                "severity": "critical",
+            }
+        else:
+            inv_spec_for_run = {
+                "id": "INV-DEFAULT",
+                "statement": "No invariant violation detected",
+                "category": "safety",
+                "check": "True",
+                "severity": "critical",
+            }
+
+        runner = SandboxRunner()
+        exec_result = runner.run_with_faults(
+            fault_spec=catalog,
+            target_invariant=inv_spec_for_run,
+            cassette_player=cassette_player,
+        )
+
+        applied_count = sum(1 for f in catalog.get_all_faults() if f.applied)
+        effects_count = len(exec_result.get("effects", []))
+        passed = exec_result.get("passed", True)
+        exec_status = "[bold red]VIOLATED (Reproduced) ❌[/bold red]" if not passed else "[bold green]PASSED ✅[/bold green]"
+
+        from rich.panel import Panel as _Panel
+        console.print()
+        console.print(_Panel(
+            f"Replay Status : {exec_status}\n"
+            f"Effects Recorded : {effects_count} ledger entries\n"
+            f"Faults Applied   : {applied_count} / {len(catalog.get_all_faults())} specs triggered\n"
+            f"Eval Error       : {exec_result['eval_result'].get('error') or 'none'}\n"
+            f"Exec Time        : {exec_result['eval_result'].get('exec_time_ms', 0):.2f} ms",
+            title="[bold cyan]🧪 Sandbox Execution Result (Zero-Prod)[/bold cyan]",
+            border_style="cyan",
+        ))
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[dim yellow](Sandbox execution skipped: {exc})[/dim yellow]")
 
 
 def repro_command(
     repro_file: str | None = typer.Argument(None, help="Path to reproducer YAML spec file"),
     config: str | None = typer.Option(None, "--config", "-c", help="Path to reproducer YAML spec file"),
+    generate_test: bool = typer.Option(False, "--generate-test", "-g", help="Generate pytest regression test file"),
+    test_output_dir: str = typer.Option("tests/regression", "--test-output-dir", help="Output directory for generated tests"),
 ) -> None:
     """Execute a minimal reproducer in local sandbox and print detailed verdict & code diagnostics."""
     actual_config = config if isinstance(config, (str, Path)) else None
@@ -442,6 +566,26 @@ def repro_command(
 
     cwd = Path.cwd()
     inv_spec = _extract_invariant_spec(violated_invariant, cwd)
+    if not inv_spec and "check" in data:
+        inv_spec = {
+            "id": violated_invariant,
+            "statement": str(data.get("statement") or violated_invariant),
+            "category": str(data.get("category") or "safety"),
+            "check": str(data.get("check") or "True"),
+            "severity": str(data.get("severity") or "critical"),
+        }
+
+    # ── F4: Real sandbox execution ────────────────────────────────────────────
+    trace_file = _find_trace_file(trace_id, cwd)
+    _run_sandbox_execution(
+        faults_list=faults_list,
+        violated_invariant=violated_invariant,
+        trace_file=trace_file,
+        console=console,
+        inv_spec=inv_spec,
+    )
+    # ─────────────────────────────────────────────────────────────────────────
+
     extra_keywords: set[str] = set()
     if inv_spec:
         inv_panel_text = (
@@ -550,4 +694,21 @@ def repro_command(
     fix_content = f"👉 [bold yellow]Actionable Fix Recommendations:[/bold yellow]\n{fix_body}"
     console.print()
     console.print(Panel(fix_content, title="[bold green]Recommended Action[/bold green]", border_style="green"))
+
+    # Generate regression test if requested
+    is_gen_test = generate_test is True
+    if is_gen_test:
+        from arc.execution.fork_engine.regression_generator import RegressionTestGenerator
+        actual_out_dir = str(getattr(test_output_dir, "default", test_output_dir))
+        generator = RegressionTestGenerator(output_dir=actual_out_dir)
+        test_file = generator.generate_from_yaml(path)
+        console.print(
+            Panel(
+                f"[bold green]✓ Pytest regression test generated successfully![/bold green]\n"
+                f"File: [cyan]{test_file}[/cyan]\n"
+                f"Run:  [yellow]pytest {test_file}[/yellow]",
+                title="[bold blue]Regression Test Generated[/bold blue]",
+                border_style="blue",
+            )
+        )
     console.print()
