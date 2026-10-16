@@ -23,7 +23,7 @@ from arc.sdk.redactor import Redactor, redact_payload
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_tracer = otel_trace.get_tracer("arc_sdk", "0.1.1")
+_tracer = otel_trace.get_tracer("arc_sdk", "0.1.2")
 
 
 class TraceContext:
@@ -50,9 +50,11 @@ class TraceContext:
         self.status_source: str = "agent_self_report"
 
     def add_step(self, step: dict[str, Any]) -> None:
+        """Appends an execution step to the active trace context."""
         self.steps.append(step)
 
     def to_ctf_dict(self) -> dict[str, Any]:
+        """Serializes the current trace context into a CTF v1.0 schema dictionary."""
         wall_ms = round((time.perf_counter() - self.start_perf) * 1000, 2)
         return {
             "trace_id": self.trace_id,
@@ -89,10 +91,12 @@ _current_trace_context: ContextVar[TraceContext | None] = ContextVar(
 
 
 def get_current_trace_context() -> TraceContext | None:
+    """Retrieves the active TraceContext from the thread-local ContextVar."""
     return _current_trace_context.get()
 
 
 def get_current_trace() -> dict[str, Any] | None:
+    """Returns the active trace as a serialized CTF v1.0 dictionary, or None if no active context."""
     ctx = get_current_trace_context()
     if ctx is None:
         return None

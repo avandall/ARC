@@ -13,16 +13,21 @@ _gateway_instance = ApprovalGateway()
 
 
 def get_gateway() -> ApprovalGateway:
+    """Dependency provider returning the singleton ApprovalGateway instance."""
     return _gateway_instance
 
 
 class RejectCandidateRequest(BaseModel):
+    """Request payload schema for rejecting an invariant candidate."""
+
     reason: str = Field(..., description="Reason for candidate rejection")
     rejected_by: str = Field(default="engineer", description="User or service performing rejection")
     statement: str | None = Field(default=None, description="Candidate statement if not in DB")
 
 
 class CatalogSyncRequest(BaseModel):
+    """Request payload schema for property catalog synchronization."""
+
     direction: str = Field(default="yaml_to_db", description="Sync direction (yaml_to_db or db_to_yaml)")
     reverse: bool = Field(default=False, description="Attempt reverse sync from DB to YAML")
 

@@ -47,6 +47,7 @@ class MinedCandidate:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Converts the mined invariant candidate into a standard dictionary representation."""
         return {
             "id": self.id,
             "statement": self.statement,

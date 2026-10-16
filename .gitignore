@@ -47,3 +47,4 @@ package-lock.json
 pipeline/.ralph/runs/
 pipeline/docs/runtime/session_live.log
 pipeline/
+upload.md

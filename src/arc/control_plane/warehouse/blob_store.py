@@ -18,6 +18,7 @@ class S3BlobStore:
         self._in_memory_store: dict[str, bytes] = {}
 
     def _hash_bytes(self, content_bytes: bytes) -> str:
+        """Computes content-addressed sha256 reference string for raw bytes."""
         digest = hashlib.sha256(content_bytes).hexdigest()
         return f"sha256:{digest}"
 

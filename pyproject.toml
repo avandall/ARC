@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc-reliability"
-version = "0.1.1"
+version = "0.1.2"
 description = "Autonomous Reliability & Chaos Harness for AI Agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,6 +42,7 @@ dependencies = [
 Homepage = "https://github.com/avandall/ARC"
 Repository = "https://github.com/avandall/ARC"
 Issues = "https://github.com/avandall/ARC/issues"
+Documentation = "https://github.com/avandall/ARC/blob/main/docs/API_DOCUMENTATION.md"
 
 
 [project.optional-dependencies]

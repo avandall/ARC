@@ -27,6 +27,7 @@ class TraceWarehouse:
         self.db.set_allowed_agents(allowed_agents)
 
     def _ensure_blob_ref(self, val: Any) -> str | None:
+        """Stores content in blob store if not already hashed, returning the sha256 reference."""
         if val is None:
             return None
         if isinstance(val, str) and val.startswith("sha256:"):

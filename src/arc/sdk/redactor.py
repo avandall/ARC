@@ -20,6 +20,7 @@ class RedactionRule:
 
     @classmethod
     def create(cls, rule_id: str, regex_pattern: str) -> RedactionRule:
+        """Factory method compiling a regex pattern into a RedactionRule with formatted placeholder."""
         return cls(
             rule_id=rule_id,
             pattern=re.compile(regex_pattern),
@@ -39,6 +40,7 @@ DEFAULT_RULES: list[RedactionRule] = [
 
 
 def calculate_shannon_entropy(s: str) -> float:
+    """Calculates the Shannon entropy of a string to identify high-entropy random keys."""
     if not s:
         return 0.0
     probabilities = [float(s.count(c)) / len(s) for c in set(s)]

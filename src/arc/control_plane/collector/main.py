@@ -22,6 +22,7 @@ warehouse = TraceWarehouse()
 
 
 def get_warehouse() -> TraceWarehouse:
+    """Dependency provider returning the module-level TraceWarehouse instance."""
     return warehouse
 
 

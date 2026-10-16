@@ -1,108 +1,143 @@
-# ARC — Autonomous Reliability & Chaos Harness for AI Agents
+# ARC — Agent Reliability & Chaos Harness
+
+**Deterministic simulation and chaos engineering harness for production AI agents.**
 
 [![PyPI version](https://img.shields.io/pypi/v/arc-reliability.svg)](https://pypi.org/project/arc-reliability/)
 [![Python versions](https://img.shields.io/pypi/pyversions/arc-reliability.svg)](https://pypi.org/project/arc-reliability/)
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Tests](https://img.shields.io/badge/tests-90%20passed-brightgreen.svg)]()
-
-**ARC** (*Agent Reliability & Conformance Harness*) is a deterministic simulation and chaos-engineering test harness for production AI Agents that perform real-world side effects (calling APIs, executing DB transactions, issuing payments, modifying cloud infrastructure).
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 
 ---
 
-## 🚀 Key Capabilities
+## What is ARC?
 
-- **Zero-Prod Simulation & Fork-Replay**: Replay production agent execution traces with deterministic virtual clocks and sandboxed tool models without touching production databases.
-- **Chaos Fault Injection**: Inject systematic network timeouts, rate limits, schema mismatches, and double-action faults into agent decision loops.
-- **Automated Invariant Mining**: Extract safety, authorization, and financial invariants from SQL DDL schemas, OpenAPI specs, and incident postmortems with human-in-the-loop approval.
-- **Delta-Debugging (`ddmin`)**: Automatically minimize long, noisy agent failure traces into the smallest reproducible YAML bug reproducer.
-- **CI/CD Quality Gate**: Enforce statistical reliability verdicts in GitHub Actions or GitLab CI with standard POSIX exit codes (`arc gate`).
+When production AI agents interact with real-world systems (APIs, databases, payment gateways), transient failures (timeouts, 429 rate limits, bad schemas) often cause silent disaster:
+- The agent retries without an idempotency key and **charges a customer twice**.
+- An unhandled error causes the agent to **corrupt database state**.
+- Flaky external tools lead to **non-reproducible bugs**.
+
+**ARC** gives you a **zero-production sandbox** to replay agent execution traces, inject systematic chaos faults, and mathematically verify safety rules before deploying to production.
 
 ---
 
-## 📦 Installation
+## How It Works
+
+1. **Record**: Capture agent runs into Canonical Trace Format (CTF v1.0) with `@trace_agent` and `@trace_tool`.
+2. **Replay & Fault Injection**: Replay traces against simulated tool models with virtual clocks, injecting timeouts, rate limits, or concurrent mutations.
+3. **Verify**: Check safety invariants (e.g., *never refund more than order total*) deterministically and enforce pass/fail quality gates in CI/CD.
+
+```
+Agent Trace  ──►  Replay Sandbox (Zero-Prod)  ──►  Fault Injection  ──►  Safety Invariant Check
+                        │                                                      │
+                  Virtual Clock                                          Pass / Block CI
+```
+
+---
+
+## Installation
 
 ```bash
 pip install arc-reliability
 ```
 
-For development and testing:
-```bash
-pip install "arc-reliability[dev]"
-```
-
 ---
 
-## ⚡ Quick Start
+## Quickstart
 
-### 1. Instrument Your AI Agent with ARC SDK
+### 1. Instrument Your Agent
+
+Wrap your agent and tools with ARC decorators. Traces and state transitions are captured automatically:
 
 ```python
-from arc.sdk import trace_agent, trace_tool
+from arc import trace_agent, trace_tool
 
 @trace_tool(name="payment_gateway")
 def process_refund(order_id: str, amount: float) -> dict:
-    # Real API call or simulated response
-    return {"status": "ok", "refund_id": "ref_123"}
+    return {"status": "ok", "refund_id": "ref_1042", "amount": amount}
 
 @trace_agent(name="refund_agent")
 def handle_customer_request(order_id: str) -> dict:
     return process_refund(order_id, 45.99)
 
 if __name__ == "__main__":
-    result = handle_customer_request("8842")
-    print("Agent Execution Completed:", result)
+    result = handle_customer_request("ORD-8842")
+    print(result)
 ```
 
-### 2. Run ARC CLI Commands
+### 2. Replay with Fault Injection & Verify Invariants
 
-ARC provides a unified command-line tool `arc` for debugging, verification, and invariant catalog management:
+Test how your agent handles a network timeout after a commit without touching your live database:
+
+```python
+from arc.execution.fork_engine import FaultCatalog, FaultSpec, FaultType
+from arc.execution.sandbox_runner import SandboxRunner
+
+# 1. Define chaos fault: timeout occurs AFTER payment commits
+catalog = FaultCatalog()
+catalog.add_fault(FaultSpec(
+    at_step=1,
+    fault_type=FaultType.TIMEOUT_AFTER_COMMIT,
+    target_tool="payment_gateway"
+))
+
+# 2. Define safety invariant: payment must never be executed twice
+invariant = {
+    "id": "INV-NO-DOUBLE-CHARGE",
+    "statement": "Payment tool must not be called more than once",
+    "category": "safety",
+    "check": "len([e for e in effects if e.type == 'payment_gateway']) <= 1",
+    "severity": "critical"
+}
+
+# 3. Run in zero-prod sandbox
+runner = SandboxRunner()
+verdict = runner.run_with_faults(fault_spec=catalog, target_invariant=invariant)
+
+print("Passed:", verdict["passed"])  # False if double-charge occurred
+```
+
+---
+
+## CLI at a Glance
+
+ARC provides a single command-line interface for CI/CD gates and debugging:
 
 ```bash
-# Evaluate trace compliance in CI pipeline
-arc gate --trace trace.json --budget 100 --alpha 0.05
+# Evaluate trace reliability in CI pipeline (exit code 0 = pass, 1 = fail)
+arc gate --trace trace.json --profile smoke
 
-# Replay and verify minimal bug reproducer in local sandbox
+# Replay and diagnose a bug reproducer artifact
 arc repro arc-repro-8842.yaml
 
+# Minimize a complex failure trace into the smallest reproducible bug
+arc minimize arc-repro-long.yaml -o arc-repro-min.yaml
+
 # Start local replay debugger proxy
-arc debug --port 8080
+arc debug --port 8089
 
-# Review proposed invariant candidates
+# Review candidate invariants mined from code and schemas
 arc catalog review --id INV-PAY-002 --accept
-
-# Track and tag escaped incidents
-arc incidents tag INC-1042 --candidate-id INV-PAY-002
 ```
 
 ---
 
-## 🏗️ Architecture
+## Core Capabilities
 
-```
-ARC
-├── src/arc/
-│   ├── sdk/                 # Interceptor, Virtual Clock, Tier-1 PII Redactor
-│   ├── cli/                 # Unified CLI application (`arc`)
-│   ├── execution/           # Fork Engine, Chaos Injector, Sandbox Runner
-│   └── control_plane/       # Approval Gateway, Trace Warehouse, Invariant Miner
-└── schemas/                 # JSON Schema & SQL DDL definitions
-```
+- **Zero-Prod Replay**: Mock and replay agent side-effects in memory with `PassiveEffectLedger`.
+- **Chaos Fault Catalog**: Test against 14+ faults: `timeout_before_commit`, `timeout_after_commit`, `http_429`, `bad_schema`, `duplicate_action`, `concurrent_write`.
+- **Restricted AST Invariant Engine**: Write safety checks with safe Python expressions. Unsafe I/O and non-deterministic calls (`random()`, `time.now()`) are strictly blocked.
+- **Delta-Debugging (`ddmin`)**: Automatically isolates the exact fault that caused an invariant violation.
+- **Statistical CI Gate**: Validates reliability across parallel execution branches using 95% Wilson Score Confidence Intervals.
+- **Tier-1 PII Redaction**: Scrubs API keys (AWS, Stripe, Bearer tokens, JWTs) and high-entropy secrets at the source.
 
 ---
 
-## 🧪 Running Tests
+## Documentation
 
-```bash
-# Run the complete test suite (Unit, Integration, E2E)
-pytest tests/
-
-# Run static quality & security verification
-python3 pipeline/scripts/verify.py
-```
+For full API references, function signatures, and architecture details, see [API Documentation](docs/API_DOCUMENTATION.md).
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE)

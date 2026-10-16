@@ -13,6 +13,7 @@ router = APIRouter(prefix="/v1", tags=["bundles"])
 
 
 def get_warehouse() -> TraceWarehouse:
+    """Dependency provider returning the singleton TraceWarehouse instance."""
     from arc.control_plane.collector.main import warehouse
 
     return warehouse

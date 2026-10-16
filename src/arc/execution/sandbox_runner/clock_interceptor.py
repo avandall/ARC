@@ -20,6 +20,7 @@ class FakeDatetime(datetime.datetime):
 
     @classmethod
     def now(cls, tz: datetime.tzinfo | None = None) -> datetime.datetime:  # type: ignore[override]
+        """Returns the current virtual time from the bound VirtualClock instance."""
         if cls._virtual_clock is not None:
             v_now = cls._virtual_clock.now()
             if tz is not None:
@@ -29,6 +30,7 @@ class FakeDatetime(datetime.datetime):
 
     @classmethod
     def utcnow(cls) -> datetime.datetime:  # type: ignore[override]
+        """Returns the current UTC virtual time from the bound VirtualClock instance."""
         if cls._virtual_clock is not None:
             return cls._virtual_clock.now()  # type: ignore[no-any-return]
         return super().utcnow()  # type: ignore[no-any-return]

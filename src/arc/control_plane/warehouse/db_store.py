@@ -36,6 +36,7 @@ class DatabaseStore:
         self._init_sqlite_schema()
 
     def _init_sqlite_schema(self) -> None:
+        """Initializes relational tables and indices for local SQLite cache/store."""
         cursor = self._conn.cursor()
         cursor.execute(
             """

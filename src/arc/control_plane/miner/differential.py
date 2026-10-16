@@ -38,6 +38,7 @@ class ProfilingResult:
     ignored_traces: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        """Converts the differential profiling result into a JSON-compatible dictionary."""
         return {
             "error_trace_id": self.error_trace_id,
             "divergent_step": self.divergent_step,

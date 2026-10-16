@@ -31,6 +31,7 @@ class PostmortemCandidate(MinedCandidate):
         self.metadata["citation_unverified"] = self.citation_unverified
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializes postmortem candidate including verified citation metadata."""
         d = super().to_dict()
         d["citation"] = self.citation
         d["citation_unverified"] = self.citation_unverified

@@ -166,6 +166,7 @@ class DeterministicASTValidator(ast.NodeVisitor):
     """AST visitor enforcing deterministic execution rules on invariant expressions."""
 
     def visit_Call(self, node: ast.Call) -> None:
+        """Inspects function call node and raises ForbiddenExpressionError if non-deterministic."""
         func_name = ""
         if isinstance(node.func, ast.Name):
             func_name = node.func.id
@@ -186,6 +187,7 @@ class DeterministicASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:
+        """Inspects identifier name and raises ForbiddenExpressionError if forbidden."""
         if node.id in FORBIDDEN_FUNCTIONS:
             raise ForbiddenExpressionError(
                 f"Forbidden identifier referenced: '{node.id}'"
@@ -193,6 +195,7 @@ class DeterministicASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
+        """Inspects attribute access and forbids dunder attributes or forbidden functions."""
         if node.attr.startswith("__") and node.attr.endswith("__"):
             raise ForbiddenExpressionError(
                 f"Forbidden dunder attribute access: '{node.attr}'"
@@ -204,9 +207,11 @@ class DeterministicASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Import(self, node: ast.Import) -> None:
+        """Inspects import statement and unconditionally forbids imports in invariant checks."""
         raise ForbiddenExpressionError("Imports are strictly forbidden in invariant expressions")
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        """Inspects from-import statement and unconditionally forbids imports in invariant checks."""
         raise ForbiddenExpressionError("Imports are strictly forbidden in invariant expressions")
 
 
