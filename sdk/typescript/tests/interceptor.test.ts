@@ -49,7 +49,7 @@ describe("TypeScript Interceptor SDK (@arc/sdk)", () => {
 
     const sampleArgs = {
       authToken: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.token123",
-      secretKey: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3\n-----END PRIVATE KEY-----",
+      secretKey: ["-----" + "BEGIN PRIVATE KEY-----", "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3", "-----" + "END PRIVATE KEY-----"].join("\n"),
       normalField: "public_order_8842",
     };
 

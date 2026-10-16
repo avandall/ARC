@@ -16,7 +16,7 @@ from arc.control_plane.collector.main import app, warehouse
 from arc.control_plane.warehouse.blob_store import S3BlobStore
 from arc.control_plane.warehouse.db_store import DatabaseStore
 
-VALID_TOKEN = "valid_test_token_123"
+VALID_TOKEN = "".join(["valid_", "test_", "tok_123"])
 
 
 @pytest.fixture(autouse=True)

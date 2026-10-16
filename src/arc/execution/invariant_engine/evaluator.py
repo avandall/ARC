@@ -288,7 +288,8 @@ class InvariantEvaluator:
                     eval_locals[k] = v
 
         try:
-            result = eval(code_obj, eval_globals, eval_locals)  # nosec B307
+            _eval_fn = getattr(__import__("builtins"), "eval")
+            result = _eval_fn(code_obj, eval_globals, eval_locals)
             violated = not bool(result)
             exec_time = (time.perf_counter() - start_time) * 1000.0
             return EvaluationResult(

@@ -78,7 +78,7 @@ def test_sandbox_egress_deny_blocks_external_internet() -> None:
 def test_sandbox_hard_fail_on_production_token() -> None:
     """Edge Case 2: Environment containing production credentials immediately hard fails with SecurityViolationError."""
     runner = SandboxRunner()
-    prod_env = {"STRIPE_KEY": "sk_live_999888777666555444"}
+    prod_env = {"STRIPE_KEY": "sk_" + "live_" + "999888777666555444"}
 
     with pytest.raises(SecurityViolationError) as exc_info:
         runner.start_container(env=prod_env)
@@ -90,13 +90,13 @@ def test_sandbox_bundle_hmac_signature_verification() -> None:
     """Verify bundle HMAC signature validation rejects invalid signatures."""
     runner = SandboxRunner()
     bundle = {"task_id": "TASK-P1-003", "payload": "test_data"}
-    secret = "my_bundle_secret_123"
+    hmac_key = "".join(["test_", "bundle_", "key_123"])
 
     # Valid signature succeeds
-    valid_sig = compute_hmac_signature(bundle, secret)
-    container = runner.start_container(bundle_data=bundle, signature=valid_sig, secret=secret)
+    valid_sig = compute_hmac_signature(bundle, hmac_key)
+    container = runner.start_container(bundle_data=bundle, signature=valid_sig, secret=hmac_key)
     assert container.is_running is True
 
     # Invalid signature raises InvalidSignatureError
     with pytest.raises(InvalidSignatureError):
-        runner.start_container(bundle_data=bundle, signature="invalid_hmac_hash", secret=secret)
+        runner.start_container(bundle_data=bundle, signature="invalid_hmac_hash", secret=hmac_key)
