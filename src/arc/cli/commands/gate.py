@@ -16,6 +16,35 @@ from arc.execution.fork_engine.gate_evaluator import CIGateExitCode, GateEvaluat
 console = Console()
 
 
+def discover_trace_files(project_root: Path | None = None) -> list[Path]:
+    """Discovers available CTF trace / cassette json files in project workspace."""
+    cwd = Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    search_dirs = [
+        cwd / ".arc" / "traces",
+        cwd / ".arc" / "evidence" / "agent_faults",
+        cwd / "data",
+        cwd / "traces",
+        cwd / "examples" / "refund_agent",
+        cwd,
+    ]
+    discovered: list[Path] = []
+    seen: set[str] = set()
+    for sdir in search_dirs:
+        if not sdir.exists():
+            continue
+        for f in sdir.glob("*.json"):
+            if not f.is_file() or f.name.startswith(".") or f.name in seen:
+                continue
+            try:
+                content = f.read_text(encoding="utf-8", errors="ignore")
+                if '"steps"' in content and ('"trace_id"' in content or '"bundle_id"' in content or '"tool"' in content):
+                    discovered.append(f)
+                    seen.add(f.name)
+            except OSError:
+                continue
+    return sorted(discovered, key=lambda p: p.name)
+
+
 def gate_command(
     profile: str = typer.Option(
         "smoke",
@@ -60,8 +89,32 @@ def gate_command(
     )
 
     cwd = Path.cwd()
-    trace_ref = actual_trace or "trace_ci_gate"
-    trace_file = find_trace_file(trace_ref, cwd) if actual_trace else None
+    trace_file = None
+    if actual_trace:
+        trace_file = find_trace_file(actual_trace, cwd)
+        if trace_file is None:
+            console.print(
+                f"[bold red]Error:[/bold red] Specified trace '{actual_trace}' not found in workspace."
+            )
+            raise typer.Exit(code=int(CIGateExitCode.INFRA_ERROR))
+    else:
+        # Auto-discover from workspace (e.g. captured traces or sample traces)
+        available = discover_trace_files(cwd)
+        if available:
+            trace_file = available[0]
+            console.print(f"[dim]Auto-selected trace for CI gate: [bold cyan]{trace_file.name}[/bold cyan][/dim]")
+        else:
+            console.print(
+                Panel.fit(
+                    "[bold yellow]No Trace Available for CI Gate[/bold yellow]\n\n"
+                    "ARC CI Gate requires an execution trace with tool steps to fork and evaluate.\n"
+                    "• Record real agent traces: enable ARC Tracing in your app\n"
+                    "• Or provide a specific trace: [cyan]arc gate --trace <trace_file.json>[/cyan]",
+                    title="[bold yellow]Notice[/bold yellow]",
+                    border_style="yellow",
+                )
+            )
+            raise typer.Exit(code=int(CIGateExitCode.SUCCESS))
 
     branch_executor = None
     fault_catalog = None

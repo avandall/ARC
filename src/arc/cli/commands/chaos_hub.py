@@ -222,7 +222,25 @@ def run_repro_visual(
 
 def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = None) -> None:
     """Executes CI/CD Chaos Gate evaluation."""
-    from arc.cli.commands.gate import gate_command
+    from arc.cli.commands.gate import discover_trace_files, gate_command
+
+    root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    available_traces = discover_trace_files(root)
+
+    selected_trace: str | None = None
+    if available_traces:
+        if len(available_traces) > 1:
+            trace_choices = [t.name for t in available_traces] + ["[Auto-select First]"]
+            pick = questionary.select(
+                "Select Trace to evaluate in Chaos Gate:",
+                choices=trace_choices,
+            ).ask()
+            if pick and pick != "[Auto-select First]":
+                selected_trace = str(next(t for t in available_traces if t.name == pick))
+            elif pick == "[Auto-select First]":
+                selected_trace = str(available_traces[0])
+        else:
+            selected_trace = str(available_traces[0])
 
     console.print(
         Panel.fit(
@@ -234,7 +252,7 @@ def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = N
         )
     )
     try:
-        gate_command(profile=profile)
+        gate_command(profile=profile, trace=selected_trace)
     except SystemExit:
         pass
 
