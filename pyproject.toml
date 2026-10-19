@@ -36,6 +36,7 @@ dependencies = [
     "tree-sitter-python>=0.25.0",
     "tree-sitter-sql>=0.3.11",
     "jsonschema>=4.26.0",
+    "questionary>=2.0.0",
 ]
 
 [project.urls]
