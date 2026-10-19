@@ -57,20 +57,48 @@ def run_setup_menu(project_root: Path) -> None:
     if choice == "[1.1] Edit Configuration":
         run_edit_config_wizard(project_root)
     elif choice == "[1.2] Setup Tracing (@trace_agent & @trace_tool)":
-        console.print(
-            Panel.fit(
-                "[bold]Manual Tracing Setup Example:[/bold]\n\n"
-                "  from arc import trace_agent, trace_tool\n\n"
-                "  @trace_tool(name=\"database_lookup\")\n"
-                "  def lookup_record(id: str):\n"
-                "      return ...\n\n"
-                "  @trace_agent(name=\"primary_assistant\")\n"
-                "  def handle_message(msg: str):\n"
-                "      return ...",
-                title="Tracing Guide",
-                border_style="cyan",
+        mode = questionary.select(
+            "Tracing attachment mode:",
+            choices=[
+                "[1] Auto (AST Scanner & Interactive Diff Review)",
+                "[2] Manually (Guide & Examples)",
+                "[3] Back",
+            ],
+        ).ask()
+        if mode and mode.startswith("[1]"):
+            from arc.cli.tracer.scanner import scan_file_for_tracing
+            from arc.cli.ui.diff import review_and_apply_candidates
+
+            py_files = [
+                p
+                for p in project_root.rglob("*.py")
+                if not any(part.startswith((".", "venv")) for part in p.parts)
+            ]
+            all_cands = []
+            for pf in py_files:
+                all_cands.extend(scan_file_for_tracing(pf))
+
+            if not all_cands:
+                console.print("[green]✓ No uninstrumented agent or tool functions found.[/green]")
+            else:
+                console.print(f"[cyan]Found {len(all_cands)} tracing candidate(s). Starting review...[/cyan]")
+                applied = review_and_apply_candidates(all_cands, interactive=True)
+                console.print(f"[green]✓ Completed: {len(applied)} function(s) instrumented.[/green]")
+        elif mode and mode.startswith("[2]"):
+            console.print(
+                Panel.fit(
+                    "[bold]Manual Tracing Setup Example:[/bold]\n\n"
+                    "  from arc import trace_agent, trace_tool\n\n"
+                    "  @trace_tool(name=\"database_lookup\")\n"
+                    "  def lookup_record(id: str):\n"
+                    "      return ...\n\n"
+                    "  @trace_agent(name=\"primary_assistant\")\n"
+                    "  def handle_message(msg: str):\n"
+                    "      return ...",
+                    title="Tracing Guide",
+                    border_style="cyan",
+                )
             )
-        )
 
 
 def run_main_menu(project_root: Path | None = None) -> None:
