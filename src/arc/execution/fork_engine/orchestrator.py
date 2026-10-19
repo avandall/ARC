@@ -214,7 +214,12 @@ class ForkOrchestrator:
             else FaultSpec.from_dict(fault_spec)
         )
 
-        executor_func = branch_executor or default_dry_run_executor
+        if branch_executor is None:
+            raise ValueError(
+                "branch_executor is required for ForkOrchestrator.run_fork(). "
+                "Silent dry-run fallbacks are disabled under ARC Strict Reliability Policy."
+            )
+        executor_func = branch_executor
 
         branch_outcomes: list[dict[str, Any]] = []
 

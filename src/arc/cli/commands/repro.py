@@ -389,27 +389,12 @@ def _run_sandbox_execution(
                 "check": inv_spec["check"],
                 "severity": inv_spec.get("severity", "critical"),
             }
-        elif violated_invariant and violated_invariant != "N/A":
-            # If invariant name implies idempotency/duplicate, check at most 1 effect
-            if any(term in violated_invariant.lower() for term in ["idem", "duplicate", "pay", "refund"]):
-                fallback_check = "len(effects) <= 1"
-            else:
-                fallback_check = "len([e for e in effects if e.get('status') == 'error']) == 0"
-            inv_spec_for_run = {
-                "id": violated_invariant,
-                "statement": violated_invariant,
-                "category": "safety",
-                "check": fallback_check,
-                "severity": "critical",
-            }
         else:
-            inv_spec_for_run = {
-                "id": "INV-DEFAULT",
-                "statement": "No invariant violation detected",
-                "category": "safety",
-                "check": "True",
-                "severity": "critical",
-            }
+            console.print(
+                f"[bold yellow]Warning: No explicit check rule found for invariant '{violated_invariant}'. "
+                f"Skipping sandbox execution without synthetic fallback checks.[/bold yellow]"
+            )
+            return
 
         runner = SandboxRunner()
         exec_result = runner.run_with_faults(

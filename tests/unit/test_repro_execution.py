@@ -22,6 +22,7 @@ def test_cli_repro_executes_sandbox_and_displays_panel(tmp_path: Path) -> None:
     repro_data = {
         "trace": "test_trace_123",
         "violated": "INV-TEST-001",
+        "check": "len(effects) == 0",
         "determinism_level": "L1",
         "reproduce_rate": 1.0,
         "faults": [

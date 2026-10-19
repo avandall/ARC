@@ -107,6 +107,7 @@ class CassettePlayer:
         records: list[CassetteRecord | dict[str, Any]] | None = None,
         dynamic_fields: set[str] | None = None,
         tool_models: dict[str, ToolModelCallable] | None = None,
+        allow_synthetic_mocks: bool = False,
     ) -> None:
         self.records: list[CassetteRecord] = []
         if records:
@@ -119,6 +120,7 @@ class CassettePlayer:
         self.tool_models: dict[str, ToolModelCallable] = (
             dict(tool_models) if tool_models is not None else {}
         )
+        self.allow_synthetic_mocks: bool = allow_synthetic_mocks
 
         self.total_requests: int = 0
         self.miss_count: int = 0
@@ -201,15 +203,18 @@ class CassettePlayer:
             return model_fn(tool_name, args)
 
         # Strategy 3b: Global ToolModel Registry Fallback (§3.3, §7.4)
-        try:
-            from arc.execution.tool_models.base import registry
-            if tool_name in registry:
-                self.tool_model_fallback_matches += 1
-                model_cls = registry[tool_name]
-                model_instance = model_cls().clone_fresh_state()
-                return model_instance.handle(args)
-        except Exception:
-            pass
+        # Disabled by default under ARC Strict Reliability Policy.
+        # Only invoked if allow_synthetic_mocks=True is explicitly passed.
+        if self.allow_synthetic_mocks:
+            try:
+                from arc.execution.tool_models.base import registry
+                if tool_name in registry:
+                    self.tool_model_fallback_matches += 1
+                    model_cls = registry[tool_name]
+                    model_instance = model_cls().clone_fresh_state()
+                    return model_instance.handle(args)
+            except Exception:
+                pass
 
         # Strategy 4: Transparent Abort
         self.miss_count += 1

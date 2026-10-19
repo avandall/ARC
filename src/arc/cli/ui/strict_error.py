@@ -86,7 +86,7 @@ def get_default_action_items(provider: str, status_code: int) -> list[str]:
         return [
             f"1. Check if model name exists on {provider} documentation/catalog",
             "2. Update model_id in .arc/config.yaml",
-            "3. Or switch to standard verified model (e.g. gpt-4o, claude-3-5-sonnet, gemini-1.5-pro)",
+            "3. Or switch to standard verified model (e.g. gpt-4o, claude-3-5-sonnet, gemini-3.5-flash-lite)",
         ]
 
     return [

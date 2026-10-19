@@ -123,22 +123,10 @@ COST_USD: float = {cost_usd}
 
 
 def run_sandbox_runner(fault_spec: list[dict[str, Any]], invariant: str) -> dict[str, Any]:
-    """Execute sandbox runner or fallback mock runner with fault specs."""
-    try:
-        from arc.execution.sandbox_runner.runner import SandboxRunner
-        runner = SandboxRunner()
-        if hasattr(runner, "run_with_faults"):
-            res: dict[str, Any] = runner.run_with_faults(fault_spec=fault_spec, target_invariant=invariant)
-            return res
-    except Exception:
-        pass
-
-    return {{
-        "status": "violation_reproduced",
-        "fault_spec": fault_spec,
-        "violated_invariant": invariant,
-        "passed": False,
-    }}
+    """Execute sandbox runner with fault specs under ARC Strict Reliability Policy."""
+    from arc.execution.sandbox_runner.runner import SandboxRunner
+    runner = SandboxRunner()
+    return runner.run_with_faults(fault_spec=fault_spec, target_invariant=invariant)
 
 
 def {func_name}() -> None:
