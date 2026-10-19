@@ -23,7 +23,7 @@ from arc.sdk.redactor import Redactor, redact_payload
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_tracer = otel_trace.get_tracer("arc_sdk", "0.1.2")
+_tracer = otel_trace.get_tracer("arc_sdk", "0.1.3")
 
 
 class TraceContext:
