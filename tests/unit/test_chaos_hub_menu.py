@@ -199,7 +199,25 @@ def test_chaos_hub_menu_full_gate(tmp_path: Path) -> None:
 
         run_chaos_hub_menu(tmp_path)
 
-        mock_gate.assert_called_once_with("smoke", project_root=tmp_path)
+        mock_gate.assert_called_once_with(profile="smoke", k=3, project_root=tmp_path)
+
+
+def test_chaos_hub_menu_custom_k_gate(tmp_path: Path) -> None:
+    """Selecting [2.1] custom profile prompts for custom K and executes gate."""
+    with patch("questionary.select") as mock_select, patch(
+        "questionary.text"
+    ) as mock_text, patch(
+        "arc.cli.commands.chaos_hub.handle_full_chaos_gate"
+    ) as mock_gate:
+        mock_select.return_value.ask.side_effect = [
+            "[2.1] Full Flow Chaos Gate (arc gate)",
+            "custom (specify custom number of forks K)",
+        ]
+        mock_text.return_value.ask.return_value = "8"
+
+        run_chaos_hub_menu(tmp_path)
+
+        mock_gate.assert_called_once_with(profile="custom", k=8, project_root=tmp_path)
 
 
 def test_chaos_hub_menu_mock_services(tmp_path: Path) -> None:

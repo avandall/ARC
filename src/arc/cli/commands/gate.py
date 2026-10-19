@@ -64,6 +64,12 @@ def gate_command(
         "-t",
         help="Trace ID to evaluate in CI gate",
     ),
+    k: int | None = typer.Option(
+        None,
+        "--k",
+        "-k",
+        help="Custom number of parallel forks (overrides profile default)",
+    ),
     baseline_ci_lower: float = typer.Option(
         0.0,
         "--baseline-ci-lower",
@@ -79,6 +85,12 @@ def gate_command(
     actual_profile = profile if isinstance(profile, str) else str(getattr(profile, "default", "smoke"))
     actual_budget = budget_usd if isinstance(budget_usd, (int, float)) else getattr(budget_usd, "default", None)
     actual_trace = str(trace) if isinstance(trace, (str, Path)) else getattr(trace, "default", None)
+    actual_k = int(k) if isinstance(k, (int, float)) and int(k) > 0 else getattr(k, "default", None)
+    if actual_k is not None:
+        try:
+            actual_k = int(actual_k)
+        except (ValueError, TypeError):
+            actual_k = None
     actual_ci_lower = float(baseline_ci_lower if isinstance(baseline_ci_lower, (int, float)) else getattr(baseline_ci_lower, "default", 0.0))
     actual_ci_upper = float(baseline_ci_upper if isinstance(baseline_ci_upper, (int, float)) else getattr(baseline_ci_upper, "default", 0.0))
 
@@ -86,6 +98,7 @@ def gate_command(
         profile=actual_profile,
         budget_usd=actual_budget,
         baseline_ci=(actual_ci_lower, actual_ci_upper),
+        k=actual_k,
     )
 
     cwd = Path.cwd()

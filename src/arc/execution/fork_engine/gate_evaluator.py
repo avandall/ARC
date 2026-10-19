@@ -82,6 +82,7 @@ class GateEvaluator:
         budget_usd: float | None = None,
         baseline_ci: tuple[float, float] | list[float] = (0.0, 0.0),
         invariant_catalog: dict[str, dict[str, Any]] | None = None,  # F6
+        k: int | None = None,
     ) -> None:
         self.profile = profile.lower()
         self.budget_usd = budget_usd
@@ -89,8 +90,10 @@ class GateEvaluator:
         # F6: Map inv_id -> InvariantSpec dict for severity lookup
         self.invariant_catalog: dict[str, dict[str, Any]] = invariant_catalog or {}
 
-        # Profile configurations (§11.1)
-        if self.profile == "smoke":
+        # Profile / custom k configurations (§11.1)
+        if k is not None and k > 0:
+            self.k = int(k)
+        elif self.profile == "smoke":
             self.k = 3
         elif self.profile == "full":
             self.k = 20

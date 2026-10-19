@@ -220,7 +220,7 @@ def run_repro_visual(
     return rendered
 
 
-def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = None) -> None:
+def handle_full_chaos_gate(profile: str = "smoke", k: int | None = None, project_root: Path | None = None) -> None:
     """Executes CI/CD Chaos Gate evaluation."""
     from arc.cli.commands.gate import discover_trace_files, gate_command
 
@@ -242,9 +242,10 @@ def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = N
         else:
             selected_trace = str(available_traces[0])
 
+    k_display = f"K={k}" if k else ("K=3" if profile == "smoke" else "K=20")
     console.print(
         Panel.fit(
-            f"[bold]Profile:[/bold] {profile.upper()} | "
+            f"[bold]Profile:[/bold] {profile.upper()} ({k_display}) | "
             f"[bold]Targeting:[/bold] Targeted Mutating Boundary Points Only\n"
             f"[dim]Injecting chaos and validating invariants across simulated interactions...[/dim]",
             title="[bold cyan]ARC Chaos Gate Execution[/bold cyan]",
@@ -252,7 +253,7 @@ def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = N
         )
     )
     try:
-        gate_command(profile=profile, trace=selected_trace)
+        gate_command(profile=profile, k=k, trace=selected_trace)
     except SystemExit:
         pass
 
@@ -488,13 +489,36 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
             choices=[
                 "smoke (K=3, fast core scenarios)",
                 "full (K=20, comprehensive catalog)",
+                "custom (specify custom number of forks K)",
                 "[Back]",
             ],
         ).ask()
         if not profile_choice or profile_choice in ("[Back]", "[Cancel]", "[Back to Menu]"):
             return
-        profile = "full" if "full" in profile_choice else "smoke"
-        handle_full_chaos_gate(profile, project_root=root)
+
+        profile = "smoke"
+        custom_k: int | None = None
+        if "full" in profile_choice:
+            profile = "full"
+            custom_k = 20
+        elif "custom" in profile_choice:
+            profile = "custom"
+            k_input = questionary.text(
+                "Enter number of parallel forks (K):",
+                default="5",
+            ).ask()
+            if not k_input:
+                return
+            try:
+                custom_k = max(1, int(k_input.strip()))
+            except ValueError:
+                console.print("[yellow]Invalid K value. Defaulting to K=5.[/yellow]")
+                custom_k = 5
+        else:
+            profile = "smoke"
+            custom_k = 3
+
+        handle_full_chaos_gate(profile=profile, k=custom_k, project_root=root)
 
     elif action.startswith("[2.2]"):
         scenario_choice = questionary.select(

@@ -50,6 +50,35 @@ def test_arc_gate_clean_run_returns_exit_0() -> None:
         assert "Exit Code" in result.output
 
 
+def test_arc_gate_custom_k_parameter() -> None:
+    """Verifies that custom --k / -k option is forwarded to GateEvaluator."""
+    mock_run_result = ForkRunResult(
+        run_id="run_custom_k",
+        status="success",
+        k=7,
+        n_valid=7,
+        n_min=3,
+        total_cost_usd=0.07,
+        violations={},
+    )
+
+    with patch.object(GateEvaluator, "evaluate") as mock_eval:
+        mock_eval.return_value = GateEvaluationResult(
+            exit_code=CIGateExitCode.SUCCESS,
+            status="PASS",
+            profile="smoke",
+            k=7,
+            reason="Custom K run completed",
+            total_cost_usd=0.07,
+            run_result=mock_run_result,
+        )
+
+        result = runner.invoke(app, ["gate", "-k", "7"])
+        assert result.exit_code == 0
+        assert "K Branches" in result.output
+        assert "7" in result.output
+
+
 def test_arc_gate_critical_violation_returns_exit_1() -> None:
     """Happy Path 2: Runs 'arc gate' detecting critical invariant violation (Wilson CI non-overlapping).
 
