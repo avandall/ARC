@@ -199,5 +199,63 @@ def scan_file_for_tracing(file_path: Path) -> list[TraceCandidate]:
 
 
 def apply_candidate(candidate: TraceCandidate) -> None:
-    """Applies candidate modifications to the target file."""
-    candidate.file_path.write_text(candidate.modified_code, encoding="utf-8")
+    """Applies candidate modifications to the target file safely without overwriting earlier changes."""
+    path = Path(candidate.file_path)
+    if not path.is_file():
+        path.write_text(candidate.modified_code, encoding="utf-8")
+        return
+
+    current_code = path.read_text(encoding="utf-8")
+
+    # If the file hasn't been changed from original_code, candidate.modified_code is completely valid
+    if current_code == candidate.original_code:
+        path.write_text(candidate.modified_code, encoding="utf-8")
+        return
+
+    # If current_code already contains the decorator for this function, no-op
+    try:
+        tree = ast.parse(current_code)
+    except SyntaxError:
+        path.write_text(candidate.modified_code, encoding="utf-8")
+        return
+
+    target_node: ast.FunctionDef | ast.AsyncFunctionDef | None = None
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == candidate.function_name
+        ):
+            target_node = node
+            break
+
+    if target_node is None or _has_tracing_decorator(target_node):
+        return
+
+    lines = current_code.splitlines(keepends=True)
+    def_line_idx = target_node.lineno - 1
+    def_line = lines[def_line_idx]
+    indent = def_line[: len(def_line) - len(def_line.lstrip())]
+    decorator_str = f"{indent}@{candidate.decorator_type}(name=\"{candidate.function_name}\")\n"
+
+    lines.insert(def_line_idx, decorator_str)
+
+    cand_import = f"from arc import {candidate.decorator_type}\n"
+    if (
+        f"from arc import {candidate.decorator_type}" not in current_code
+        and "from arc import *" not in current_code
+    ):
+        insert_pos = 0
+        if (
+            len(lines) > 0
+            and isinstance(tree.body[0] if tree.body else None, ast.Expr)
+            and isinstance(getattr(tree.body[0], "value", None), ast.Constant)
+        ):
+            insert_pos = getattr(tree.body[0], "end_lineno", 1)
+        lines.insert(insert_pos, cand_import)
+
+    updated_code = "".join(lines)
+    try:
+        ast.parse(updated_code)
+        path.write_text(updated_code, encoding="utf-8")
+    except SyntaxError:
+        pass

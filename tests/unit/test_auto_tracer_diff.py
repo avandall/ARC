@@ -174,3 +174,33 @@ def test_review_and_apply_candidates_cancel_q(
     applied = review_and_apply_candidates(all_cands, interactive=True)
     assert len(applied) == 0
     assert "@trace_agent" not in file1.read_text(encoding="utf-8")
+
+
+def test_review_and_apply_multiple_candidates_in_same_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifies that applying multiple candidates to the SAME file preserves all decorators."""
+    code = (
+        "def handle_message(msg: str):\n"
+        "    return msg\n\n"
+        "def lookup_order(order_id: str):\n"
+        "    return order_id\n"
+    )
+    test_file = tmp_path / "combined.py"
+    test_file.write_text(code, encoding="utf-8")
+
+    cands = scan_file_for_tracing(test_file)
+    assert len(cands) == 2
+
+    # Accept all
+    mock_select = MagicMock(return_value=MagicMock(ask=MagicMock(return_value="[a] Accept All")))
+    monkeypatch.setattr("questionary.select", mock_select)
+
+    applied = review_and_apply_candidates(cands, interactive=True)
+    assert len(applied) == 2
+
+    final_content = test_file.read_text(encoding="utf-8")
+    assert "@trace_agent(name=\"handle_message\")" in final_content
+    assert "@trace_tool(name=\"lookup_order\")" in final_content
+    # Syntax check
+    assert ast.parse(final_content) is not None

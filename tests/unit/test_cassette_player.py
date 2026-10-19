@@ -96,7 +96,7 @@ def test_rule_based_matcher_detects_semantic_payload_change() -> None:
     """Edge Case 2: Business payload modification fails rule-based matching and falls through to miss flow."""
     recorded_args = {"order_id": 8842, "amount_cents": 4599}
     record = CassetteRecord(
-        tool="issue_refund",
+        tool="unregistered_refund_service",
         request_args=recorded_args,
         response={"status": "ok", "refund_id": "ref_8842_003"},
     )
@@ -111,7 +111,7 @@ def test_rule_based_matcher_detects_semantic_payload_change() -> None:
     }
 
     with pytest.raises(CassetteMissException):
-        player.replay("issue_refund", modified_args)
+        player.replay("unregistered_refund_service", modified_args)
 
     assert player.miss_count == 1
     assert player.exact_matches == 0

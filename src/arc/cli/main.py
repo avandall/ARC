@@ -5,6 +5,7 @@ Provides interactive onboarding on first run and quick-action menu on subsequent
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import questionary
@@ -54,6 +55,9 @@ def run_setup_menu(project_root: Path) -> None:
             "[1.3] Back to Main Menu",
         ],
     ).ask()
+
+    if choice is None or choice == "[1.3] Back to Main Menu":
+        return
 
     if choice == "[1.1] Edit Configuration":
         run_edit_config_wizard(project_root)
@@ -150,6 +154,21 @@ def handle_smart_start(project_root: Path | None = None) -> None:
 def main(ctx: typer.Context) -> None:
     """ARC CLI Main Callback handling Smart State Detection."""
     if ctx.invoked_subcommand is None:
+        if not sys.stdin.isatty():
+            root = Path.cwd().resolve()
+            console.print(
+                Panel.fit(
+                    f"[bold]Project:[/bold] {root}\n"
+                    f"[bold]Status:[/bold] {'Configured (.arc/config.yaml)' if is_arc_scaffold_initialized(root) else 'Uninitialized'}\n\n"
+                    "[dim]Running in non-interactive environment. Use subcommands directly, e.g.:\n"
+                    "  arc --help\n"
+                    "  arc gate --profile smoke\n"
+                    "  arc repro <spec_file>[/dim]",
+                    title="[bold cyan]ARC CLI[/bold cyan]",
+                    border_style="cyan",
+                )
+            )
+            return
         handle_smart_start()
 
 
