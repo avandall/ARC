@@ -27,22 +27,29 @@ from arc.cli.commands.minimize import minimize_command
 from arc.cli.commands.repro import repro_command
 from arc.cli.scaffold import is_arc_scaffold_initialized
 
-console = Console()
+import time
 
-ARC_BANNER = """[bold cyan]
-  █████╗ ██████╗  ██████╗ 
- ██╔══██╗██╔══██╗██╔════╝ 
- ███████║██████╔╝██║      
- ██╔══██║██╔══██╗██║      
- ██║  ██║██║  ██║╚██████╗ 
- ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ [/bold cyan]
-[dim cyan]Autonomous Reliability & Chaos Engine[/dim cyan]
-"""
+console = Console()
 
 
 def print_banner() -> None:
-    """Prints the stylish ARC large ASCII banner."""
-    console.print(ARC_BANNER)
+    """Prints the stylish ARC large ASCII banner line-by-line with a snappy animation."""
+    banner_lines = [
+        "[bold cyan]  █████╗ ██████╗  ██████╗ [/bold cyan]",
+        "[bold cyan] ██╔══██╗██╔══██╗██╔════╝ [/bold cyan]",
+        "[bold cyan] ███████║██████╔╝██║      [/bold cyan]",
+        "[bold cyan] ██╔══██║██╔══██╗██║      [/bold cyan]",
+        "[bold cyan] ██║  ██║██║  ██║╚██████╗ [/bold cyan]",
+        "[bold cyan] ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ [/bold cyan]",
+        "[dim cyan]Autonomous Reliability & Chaos Engine[/dim cyan]",
+    ]
+    is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+    for line in banner_lines:
+        console.print(line)
+        if is_tty:
+            time.sleep(0.035)
+    if is_tty:
+        time.sleep(0.04)
 
 
 app = typer.Typer(
@@ -140,14 +147,6 @@ def run_main_menu(project_root: Path | None = None) -> bool:
     root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
 
     try:
-        console.print(
-            Panel.fit(
-                f"[bold]Project:[/bold] {root}  |  [bold]Config:[/bold] .arc/config.yaml [[green]Active[/green]]",
-                title="[bold cyan]ARC Autonomous Reliability & Chaos Engine[/bold cyan]",
-                border_style="cyan",
-            )
-        )
-
         action = questionary.select(
             "Select an action:",
             choices=[
@@ -187,6 +186,13 @@ def handle_smart_start(project_root: Path | None = None) -> None:
     if not is_arc_scaffold_initialized(root):
         run_init_wizard(root)
     else:
+        console.print(
+            Panel.fit(
+                f"[bold]Project:[/bold] {root}  |  [bold]Config:[/bold] .arc/config.yaml [[green]Active[/green]]",
+                title="[bold cyan]ARC Autonomous Reliability & Chaos Engine[/bold cyan]",
+                border_style="cyan",
+            )
+        )
         while True:
             try:
                 should_continue = run_main_menu(root)
