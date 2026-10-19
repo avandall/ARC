@@ -376,7 +376,7 @@ def _run_sandbox_execution(
                     if isinstance(s.get("request"), dict) and "tool" in s["request"]
                 ]
                 if cassette_records:
-                    cassette_player = CassettePlayer(records=cassette_records)
+                    cassette_player = CassettePlayer(records=cassette_records)  # type: ignore[arg-type]
             except Exception:  # noqa: BLE001, S110
                 pass  # trace unreadable — proceed without cassette
 
@@ -443,6 +443,7 @@ def repro_command(
     config: str | None = typer.Option(None, "--config", "-c", help="Path to reproducer YAML spec file"),
     generate_test: bool = typer.Option(False, "--generate-test", "-g", help="Generate pytest regression test file"),
     test_output_dir: str = typer.Option("tests/regression", "--test-output-dir", help="Output directory for generated tests"),
+    visual: bool = typer.Option(False, "--visual", "-v", help="Use Visual UI Engine format (PASS [repro])"),
 ) -> None:
     """Execute a minimal reproducer in local sandbox and print detailed verdict & code diagnostics."""
     actual_config = config if isinstance(config, (str, Path)) else None
@@ -456,6 +457,11 @@ def repro_command(
     if not path.exists() or not path.is_file():
         console.print(f"[bold red]Error: Reproducer file not found ({path})[/bold red]")
         raise typer.Exit(code=1)
+
+    if visual:
+        from arc.cli.commands.chaos_hub import run_repro_visual
+        run_repro_visual(path, console_out=console)
+        return
 
     try:
         with open(path, encoding="utf-8") as f_in:

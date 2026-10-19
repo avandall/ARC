@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from arc.cli.commands.catalog import catalog_app
+from arc.cli.commands.chaos_hub import run_chaos_hub_menu
 from arc.cli.commands.debug import debug_command
 from arc.cli.commands.gate import gate_command
 from arc.cli.commands.incidents import incidents_app
@@ -130,9 +131,7 @@ def run_main_menu(project_root: Path | None = None) -> None:
     if action.startswith("[1]"):
         run_setup_menu(root)
     elif action.startswith("[2]"):
-        console.print(
-            "[cyan]Run [bold]arc gate[/bold] or [bold]arc repro <file>[/bold] to execute fault injections.[/cyan]"
-        )
+        run_chaos_hub_menu(root)
     elif action.startswith("[3]"):
         console.print("[cyan]Run [bold]arc catalog review[/bold] to review invariant candidates.[/cyan]")
 

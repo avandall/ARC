@@ -13,6 +13,7 @@ Subcommands:
 from __future__ import annotations
 
 from arc.cli.commands.catalog import catalog_app
+from arc.cli.commands.chaos_hub import list_incident_files, run_chaos_hub_menu
 from arc.cli.commands.debug import debug_command
 from arc.cli.commands.gate import gate_command
 from arc.cli.commands.incidents import incidents_app
@@ -32,8 +33,10 @@ __all__ = [
     "incidents_app",
     "init_app",
     "init_command",
+    "list_incident_files",
     "minimize_command",
     "repro_command",
+    "run_chaos_hub_menu",
     "run_edit_config_wizard",
     "run_init_wizard",
 ]
