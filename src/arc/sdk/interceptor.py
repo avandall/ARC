@@ -128,6 +128,30 @@ def push_trace_to_collector(
         return False
 
 
+def _export_trace(
+    ctx: TraceContext,
+    collector_url: str | None = None,
+    trace_dir: str | None = None,
+) -> None:
+    """Exports trace to remote collector and/or writes to local trace_dir."""
+    if not (collector_url or trace_dir):
+        return
+    payload = ctx.to_ctf_dict()
+    if collector_url:
+        _ = push_trace_to_collector(payload, collector_url)
+    if trace_dir:
+        import json
+        from pathlib import Path
+
+        try:
+            p = Path(trace_dir)
+            p.mkdir(parents=True, exist_ok=True)
+            out_file = p / f"{ctx.trace_id}.json"
+            out_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 class trace_agent:
     """Decorator or Context Manager wrapping Agent execution."""
 
@@ -139,6 +163,7 @@ class trace_agent:
         model_provider: str = "openai",
         model_id: str = "gpt-4o",
         collector_url: str | None = None,
+        trace_dir: str | None = None,
     ) -> None:
         self.name: str = name
         self.version: str = version
@@ -147,6 +172,7 @@ class trace_agent:
         self.model_id: str = model_id
         import os
         self.collector_url: str | None = collector_url or os.environ.get("ARC_COLLECTOR_URL")
+        self.trace_dir: str | None = trace_dir or os.environ.get("ARC_TRACE_DIR")
         self.ctx: TraceContext | None = None
         self._token: Token[TraceContext | None] | None = None
 
@@ -169,8 +195,8 @@ class trace_agent:
     ) -> Literal[False]:
         if exc_val is not None and self.ctx is not None:
             self.ctx.outcome_status = "agent_error"
-        if self.collector_url and self.ctx is not None:
-            _ = push_trace_to_collector(self.ctx.to_ctf_dict(), self.collector_url)
+        if self.ctx is not None:
+            _export_trace(self.ctx, self.collector_url, self.trace_dir)
         if self._token is not None:
             _current_trace_context.reset(self._token)
         return False
@@ -201,8 +227,7 @@ class trace_agent:
                     span.record_exception(exc)
                     raise
                 finally:
-                    if self.collector_url:
-                        _ = push_trace_to_collector(ctx.to_ctf_dict(), self.collector_url)
+                    _export_trace(ctx, self.collector_url, self.trace_dir)
                     _current_trace_context.reset(token)
 
         return cast(F, wrapper)

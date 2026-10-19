@@ -196,3 +196,21 @@ def test_python_circular_reference_and_stacktrace_redaction() -> None:
         assert "[REDACTED:generic_bearer]" in step["response"]["error"]
         assert "[REDACTED:generic_bearer]" in step["response"]["traceback"]
 
+
+def test_trace_agent_persists_to_trace_dir(tmp_path: Any, monkeypatch: Any) -> None:
+    """Verifies that setting ARC_TRACE_DIR automatically dumps traces to local disk without collector."""
+    monkeypatch.setenv("ARC_TRACE_DIR", str(tmp_path))
+
+    @arc.trace_agent(name="local_agent")
+    def run_agent() -> str:
+        return "success"
+
+    res = run_agent()
+    assert res == "success"
+
+    files = list(tmp_path.glob("*.json"))
+    assert len(files) == 1
+    content = files[0].read_text(encoding="utf-8")
+    assert "local_agent" in content
+
+
