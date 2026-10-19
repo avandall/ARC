@@ -29,6 +29,22 @@ from arc.cli.scaffold import is_arc_scaffold_initialized
 
 console = Console()
 
+ARC_BANNER = """[bold cyan]
+  █████╗ ██████╗  ██████╗ 
+ ██╔══██╗██╔══██╗██╔════╝ 
+ ███████║██████╔╝██║      
+ ██╔══██║██╔══██╗██║      
+ ██║  ██║██║  ██║╚██████╗ 
+ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ [/bold cyan]
+[dim cyan]Autonomous Reliability & Chaos Engine[/dim cyan]
+"""
+
+
+def print_banner() -> None:
+    """Prints the stylish ARC large ASCII banner."""
+    console.print(ARC_BANNER)
+
+
 app = typer.Typer(
     name="arc",
     help="ARC CLI - Autonomous Reliability & Chaos Engine",
@@ -143,6 +159,7 @@ def run_main_menu(project_root: Path | None = None) -> None:
 def handle_smart_start(project_root: Path | None = None) -> None:
     """Smart state detection: first-time launch runs wizard, subsequent launch shows Main Menu."""
     root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    print_banner()
 
     if not is_arc_scaffold_initialized(root):
         run_init_wizard(root)
@@ -155,6 +172,7 @@ def main(ctx: typer.Context) -> None:
     """ARC CLI Main Callback handling Smart State Detection."""
     if ctx.invoked_subcommand is None:
         if not sys.stdin.isatty():
+            print_banner()
             root = Path.cwd().resolve()
             console.print(
                 Panel.fit(
