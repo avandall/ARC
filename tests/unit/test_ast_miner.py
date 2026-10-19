@@ -99,3 +99,26 @@ def test_miner_deduplicates_identical_mined_candidates() -> None:
 
     # Deduplicated by normalized check expression: 'refund_amount <= total_amount'
     assert len(conservation_cands) == 1
+
+
+def test_mine_python_guards_and_docstrings() -> None:
+    """Verifies that ASTMiner extracts invariant candidates from raise statements and docstrings."""
+    py_code = '''
+def transfer_funds(sender: str, recipient: str, amount: float) -> None:
+    """Transfer funds between accounts.
+
+    Invariant: sender != recipient
+    """
+    if amount <= 0:
+        raise ValueError("amount must be strictly positive")
+    if not sender.startswith("acc_"):
+        raise PermissionError("unauthorized sender account format")
+'''
+    miner = ASTMiner()
+    candidates = miner.mine_python_source(py_code, filename="accounts.py")
+
+    assert len(candidates) >= 2
+
+    statements = [c.statement for c in candidates]
+    assert any("positive" in s or "amount" in s for s in statements)
+    assert any("sender != recipient" in s for s in statements)

@@ -139,7 +139,7 @@ class ASTMiner:
                         check_expr = code_str[expr_node.start_byte:expr_node.end_byte].strip()
                         category = (
                             "conservation"
-                            if any(k in check_expr.lower() for k in ["refund", "amount", "total", "balance", "price", "cost"])
+                            if any(k in check_expr.lower() for k in ["refund", "amount", "total", "balance", "price"])
                             else "safety"
                         )
                         cand_id = compute_candidate_id(stmt_text, category, check_expr)
@@ -152,6 +152,74 @@ class ASTMiner:
                             metadata={"filename": filename},
                         )
                         self._process_mined_candidate(cand, candidates)
+
+                elif node.type == "raise_statement":
+                    stmt_text = code_str[node.start_byte:node.end_byte].strip()
+                    curr = node.parent
+                    if_node = None
+                    while curr and curr.type not in ("function_definition", "class_definition", "module"):
+                        if curr.type == "if_statement":
+                            if_node = curr
+                            break
+                        curr = curr.parent
+
+                    match_msg = re.search(r'["\']([^"\']{4,120})["\']', stmt_text)
+                    exception_msg = match_msg.group(1).strip() if match_msg else ""
+
+                    cond_expr = ""
+                    if if_node:
+                        cond_node = if_node.child_by_field_name("condition")
+                        if cond_node:
+                            cond_expr = code_str[cond_node.start_byte:cond_node.end_byte].strip()
+
+                    check_expr = f"not ({cond_expr})" if cond_expr else stmt_text
+                    category = "safety"
+                    combined_text = f"{cond_expr} {exception_msg} {stmt_text}".lower()
+                    if any(k in combined_text for k in ["refund", "amount", "total", "balance", "price"]):
+                        category = "conservation"
+                    elif any(k in combined_text for k in ["auth", "token", "permission", "key", "credential", "unauthorized"]):
+                        category = "authority"
+                    elif any(k in combined_text for k in ["idem", "duplicate", "replay", "unique"]):
+                        category = "idempotence"
+
+                    statement = (
+                        f"Guard condition violated: {exception_msg}"
+                        if exception_msg
+                        else f"Guard check: {check_expr}"
+                    )
+                    cand_id = compute_candidate_id(statement, category, check_expr)
+                    cand = MinedCandidate(
+                        id=cand_id,
+                        statement=statement,
+                        category=category,
+                        check=check_expr,
+                        source=["python_ast", "guard_raise"],
+                        metadata={"filename": filename, "exception": stmt_text},
+                    )
+                    self._process_mined_candidate(cand, candidates)
+
+                elif node.type in ("function_definition", "class_definition"):
+                    body = node.child_by_field_name("body")
+                    if body and body.children:
+                        first_stmt = body.children[0]
+                        if first_stmt.type == "expression_statement":
+                            stmt_text = code_str[first_stmt.start_byte:first_stmt.end_byte].strip()
+                            if stmt_text.startswith(('"""', "'''")):
+                                for line in stmt_text.splitlines():
+                                    line_clean = line.strip().strip('"\'')
+                                    if any(line_clean.lower().startswith(kw) for kw in ("invariant:", "requires:", "ensures:")):
+                                        parts = line_clean.split(":", 1)
+                                        doc_spec = parts[1].strip() if len(parts) > 1 else line_clean
+                                        cand_id = compute_candidate_id(doc_spec, "safety", doc_spec)
+                                        cand = MinedCandidate(
+                                            id=cand_id,
+                                            statement=f"Docstring rule: {doc_spec}",
+                                            category="safety",
+                                            check=doc_spec,
+                                            source=["docstring"],
+                                            metadata={"filename": filename},
+                                        )
+                                        self._process_mined_candidate(cand, candidates)
 
                 for child in node.children:
                     _traverse(child)

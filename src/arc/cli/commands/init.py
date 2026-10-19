@@ -36,20 +36,29 @@ def _trigger_quick_auto_mine(project_root: Path) -> int:
 
     try:
         from arc.control_plane.miner.ast_miner import ASTMiner
+        from arc.control_plane.warehouse.db_store import DatabaseStore
 
-        miner = ASTMiner()
+        db_store = DatabaseStore.get_shared_instance()
+        miner = ASTMiner(db_store=db_store)
+
         # Scan python files under src/ or current root (excluding .venv, .arc)
         py_files = [
             p
             for p in project_root.rglob("*.py")
             if not any(part.startswith((".", "venv")) for part in p.parts)
         ]
-        for py_file in py_files[:10]:
+        for py_file in py_files[:30]:
             try:
                 code_text = py_file.read_text(encoding="utf-8", errors="ignore")
                 extracted = miner.mine_python_source(code_text, filename=str(py_file))
                 for item in extracted:
-                    candidates.append(item.to_dict())
+                    cand_dict = item.to_dict()
+                    cand_dict["status"] = "pending"
+                    candidates.append(cand_dict)
+                    try:
+                        db_store.insert_candidate(cand_dict)
+                    except Exception:
+                        pass
             except (OSError, SyntaxError, ValueError) as exc:
                 console.print(f"[dim]Skipping file {py_file}: {exc}[/dim]")
     except (ImportError, OSError) as exc:

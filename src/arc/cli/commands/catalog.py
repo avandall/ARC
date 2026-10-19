@@ -5,7 +5,9 @@ Provides interactive candidate review (`arc catalog review`) and candidate recon
 
 from __future__ import annotations
 
+import json
 import sys
+from pathlib import Path
 from typing import Any
 
 import typer
@@ -68,6 +70,20 @@ def review_command(
             })
     else:
         candidates = _db_store.list_candidates(status="pending")
+        if not candidates:
+            # Check if .arc/catalog/mined_invariants.json exists and import into database
+            mined_file = Path.cwd().resolve() / ".arc" / "catalog" / "mined_invariants.json"
+            if mined_file.is_file():
+                try:
+                    loaded = json.loads(mined_file.read_text(encoding="utf-8"))
+                    if isinstance(loaded, list):
+                        for item in loaded:
+                            item_copy = dict(item)
+                            item_copy["status"] = "pending"
+                            _db_store.insert_candidate(item_copy)
+                        candidates = _db_store.list_candidates(status="pending")
+                except Exception:
+                    pass
 
     if not candidates and not candidate_id:
         console.print("[bold yellow]No pending invariant candidates found for review.[/bold yellow]")
