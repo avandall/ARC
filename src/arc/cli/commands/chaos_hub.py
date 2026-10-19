@@ -489,7 +489,7 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
             choices=[
                 "smoke (K=3, fast core scenarios)",
                 "full (K=20, comprehensive catalog)",
-                "custom (specify custom number of forks K)",
+                "custom (specify K)",
                 "[Back]",
             ],
         ).ask()
