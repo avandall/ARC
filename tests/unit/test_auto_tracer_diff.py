@@ -204,3 +204,37 @@ def test_review_and_apply_multiple_candidates_in_same_file(
     assert "@trace_tool(name=\"lookup_order\")" in final_content
     # Syntax check
     assert ast.parse(final_content) is not None
+
+
+def test_scanner_rejects_false_positives() -> None:
+    """Verifies that staticmethods, UI badge helpers, properties, test files, and CLI commands are never scanned."""
+    code = """
+class Badge:
+    @staticmethod
+    def agent() -> str:
+        return "agent"
+
+    @staticmethod
+    def tool() -> str:
+        return "tool"
+
+    @property
+    def api_key(self) -> str:
+        return "key"
+
+def main() -> None:
+    pass
+
+def test_something():
+    assert True
+"""
+    # 1. Non-test filename
+    cands = scan_code_for_tracing(code, filename="badges.py")
+    assert len(cands) == 0
+
+    # 2. Test filename ignored
+    test_cands = scan_code_for_tracing(
+        "def handle_message(msg): pass", filename="tests/test_agent.py"
+    )
+    assert len(test_cands) == 0
+

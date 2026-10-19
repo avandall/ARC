@@ -99,13 +99,13 @@ def run_setup_menu(project_root: Path) -> None:
                     continue
 
                 if mode.startswith("[1]"):
-                    from arc.cli.tracer.scanner import scan_file_for_tracing
+                    from arc.cli.tracer.scanner import is_ignored_file, scan_file_for_tracing
                     from arc.cli.ui.diff import review_and_apply_candidates
 
                     py_files = [
                         p
                         for p in project_root.rglob("*.py")
-                        if not any(part.startswith((".", "venv")) for part in p.parts)
+                        if not is_ignored_file(p)
                     ]
                     all_cands = []
                     for pf in py_files:

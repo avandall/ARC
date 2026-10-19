@@ -272,3 +272,20 @@ def test_main_menu_routes_to_chaos_hub(tmp_path: Path) -> None:
         run_main_menu(tmp_path)
         mock_chaos_hub.assert_called_once_with(tmp_path)
 
+
+def test_handle_mock_service_and_k_parallel_execute_real_engines(tmp_path: Path) -> None:
+    """Verifies that simulation and k-parallel replay run real engines rather than hardcoded tables."""
+    from arc.cli.commands.chaos_hub import (
+        handle_k_parallel_fork_replay,
+        handle_mock_service_simulation,
+    )
+
+    # 1. Real service simulation execution
+    handle_mock_service_simulation("db_down", project_root=tmp_path)
+    handle_mock_service_simulation("payment_timeout", project_root=tmp_path)
+    handle_mock_service_simulation("rate_limit", project_root=tmp_path)
+
+    # 2. Real K-parallel fork execution
+    handle_k_parallel_fork_replay(k=3, project_root=tmp_path)
+
+

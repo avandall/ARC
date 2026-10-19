@@ -24,46 +24,109 @@ class TraceCandidate:
     diff_snippet: str
 
 
-AGENT_NAME_KEYWORDS = {
-    "handle_message",
+EXACT_AGENT_NAMES = {
     "handle_customer_message",
-    "process_message",
+    "handle_message",
     "process_customer_message",
+    "process_message",
     "run_agent",
+    "execute_agent",
     "call_agent",
     "chat_assistant",
-    "agent",
-    "assistant",
-    "handle_ticket",
-    "execute_agent",
     "solve_task",
 }
 
-AGENT_ARG_KEYWORDS = {
-    "message",
-    "msg",
-    "query",
-    "user_query",
-    "prompt",
-    "user_input",
-}
-
-TOOL_NAME_KEYWORDS = {
-    "lookup",
-    "lookup_order",
+EXACT_TOOL_NAMES = {
     "lookup_order_status",
-    "fetch",
-    "query",
-    "execute_tool",
-    "call_api",
+    "lookup_order",
     "charge_payment",
     "issue_refund",
-    "send_email",
+    "process_payment",
     "send_notification",
-    "payment_gateway",
-    "db_query",
+    "send_email",
     "database_lookup",
+    "execute_db_query",
 }
+
+SKIP_DECORATORS = {
+    "staticmethod",
+    "classmethod",
+    "property",
+    "abstractmethod",
+    "fixture",
+    "pytest.fixture",
+    "command",
+    "callback",
+    "get",
+    "post",
+    "put",
+    "delete",
+}
+
+SKIP_FUNCTION_NAMES = {
+    "main",
+    "cli",
+    "render",
+    "format",
+    "print",
+    "setup",
+    "init",
+    "close",
+    "clean",
+    "cleanup",
+    "parse",
+    "validate",
+    "tag",
+    "badge",
+    "export",
+    "load",
+    "dump",
+    "read",
+    "write",
+    "get",
+    "set",
+    "update",
+    "delete",
+    "agent",
+    "tool",
+    "to_dict",
+    "to_json",
+    "from_dict",
+    "from_json",
+}
+
+
+def is_ignored_file(file_path: Path | str) -> bool:
+    """Returns True if the file belongs to test suites, framework internals, or build artifacts."""
+    p = Path(file_path)
+    parts = [part.lower() for part in p.parts]
+    if any(
+        part in (
+            "tests",
+            "test",
+            "testing",
+            "docs",
+            "build",
+            "dist",
+            "node_modules",
+            "sdk",
+            ".venv",
+            "venv",
+            ".arc",
+            ".git",
+        )
+        or part.startswith(".")
+        for part in parts
+    ):
+        return True
+    if p.name.startswith("test_") or p.name.endswith("_test.py") or p.name in ("conftest.py", "setup.py"):
+        return True
+    # If scanning inside ARC repository itself, avoid instrumenting framework internals
+    if "arc" in parts and any(
+        sub in parts for sub in ("cli", "control_plane", "execution", "ui")
+    ):
+        return True
+    return False
 
 
 def _has_tracing_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -82,27 +145,113 @@ def _has_tracing_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool
     return False
 
 
+def _has_skip_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Checks if node is decorated with non-agent/tool decorators like @staticmethod or @property."""
+    for dec in node.decorator_list:
+        dec_name = ""
+        if isinstance(dec, ast.Name):
+            dec_name = dec.id
+        elif isinstance(dec, ast.Attribute):
+            dec_name = dec.attr
+        elif isinstance(dec, ast.Call):
+            if isinstance(dec.func, ast.Name):
+                dec_name = dec.func.id
+            elif isinstance(dec.func, ast.Attribute):
+                dec_name = dec.func.attr
+        if dec_name.lower() in SKIP_DECORATORS:
+            return True
+    return False
+
+
 def _detect_candidate_type(
     node: ast.FunctionDef | ast.AsyncFunctionDef, filename: str
 ) -> str | None:
-    """Classifies a function as trace_agent, trace_tool, or None."""
+    """Classifies a function as trace_agent, trace_tool, or None with high precision."""
+    if is_ignored_file(filename):
+        return None
+
+    # Skip private, dunder, and test functions
+    if node.name.startswith(("_", "test_")):
+        return None
+
+    # Skip methods decorated with staticmethod, property, fixture, CLI, etc.
+    if _has_skip_decorator(node):
+        return None
+
     fn_lower = node.name.lower()
-    args_lower = {arg.arg.lower() for arg in node.args.args}
+    if fn_lower in SKIP_FUNCTION_NAMES:
+        return None
 
-    # Agent check
-    if any(k in fn_lower for k in AGENT_NAME_KEYWORDS):
-        return "trace_agent"
-    if any(a in args_lower for a in AGENT_ARG_KEYWORDS):
+    # Check for explicit third-party tool decorators (e.g. @tool from LangChain/CrewAI)
+    for dec in node.decorator_list:
+        dec_name = ""
+        if isinstance(dec, ast.Name):
+            dec_name = dec.id
+        elif isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
+            dec_name = dec.func.id
+        if dec_name.lower() == "tool":
+            return "trace_tool"
+
+    # Agent Detection:
+    if fn_lower in EXACT_AGENT_NAMES or (
+        fn_lower.endswith("_agent") and not fn_lower.startswith(("is_", "get_", "set_", "has_"))
+    ):
         return "trace_agent"
 
-    # Tool check
-    if any(k in fn_lower for k in TOOL_NAME_KEYWORDS):
+    # Tool Detection:
+    TOOL_PREFIXES = (
+        "lookup_",
+        "fetch_",
+        "charge_",
+        "issue_",
+        "process_payment",
+        "send_notification",
+        "send_email",
+        "database_",
+        "tool_",
+    )
+    if fn_lower in EXACT_TOOL_NAMES or any(
+        fn_lower.startswith(prefix) for prefix in TOOL_PREFIXES
+    ):
         return "trace_tool"
-    if "tool" in fn_lower or "api" in fn_lower or "db" in fn_lower:
-        return "trace_tool"
-    if any(
-        pattern in filename.lower() for pattern in ("tool", "service", "api", "gateway")
-    ) and not fn_lower.startswith("_"):
+
+    # Deep AST call inspection: Look for LLM or external service invocation
+    has_llm_call = False
+    has_io_call = False
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call):
+            call_repr = ""
+            if isinstance(sub.func, ast.Attribute):
+                prefix = getattr(sub.func.value, "id", "")
+                call_repr = f"{prefix}.{sub.func.attr}".lower()
+            elif isinstance(sub.func, ast.Name):
+                call_repr = sub.func.id.lower()
+            if any(
+                term in call_repr
+                for term in (
+                    "chat.completions",
+                    "messages.create",
+                    "generate_content",
+                    "create_react_agent",
+                )
+            ):
+                has_llm_call = True
+            if any(
+                term in call_repr
+                for term in (
+                    "requests.post",
+                    "requests.get",
+                    "httpx.post",
+                    "httpx.get",
+                    "stripe.",
+                    "boto3.",
+                )
+            ):
+                has_io_call = True
+
+    if has_llm_call:
+        return "trace_agent"
+    if has_io_call and not fn_lower.startswith(("test_", "assert_", "check_")):
         return "trace_tool"
 
     return None

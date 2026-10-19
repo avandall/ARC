@@ -240,21 +240,87 @@ def handle_full_chaos_gate(profile: str = "smoke", project_root: Path | None = N
 
 
 def handle_mock_service_simulation(scenario: str, project_root: Path | None = None) -> None:
-    """Executes targeted mock DB and 3rd-party service simulation."""
+    """Executes targeted mock DB and 3rd-party service simulation using real SandboxRunner & FaultCatalog."""
+    import time
+    from arc.execution.fork_engine.fault_catalog import FaultCatalog, FaultSpec
+    from arc.execution.sandbox_runner.cassette_player import CassettePlayer, CassetteRecord
+    from arc.execution.sandbox_runner.runner import SandboxRunner
+
     scenario_clean = scenario.lower()
 
     if "db" in scenario_clean:
         sim_name = "Database Outage Simulation"
-        fault = "connection_refused / deadlock_rollback"
-        tool = "database_connection"
+        tool_name = "database_query"
+        fault_type = "timeout_before_commit"
+        desc = "connection_refused / deadlock_rollback"
+        inv = {
+            "id": "INV-DB-IDEMPOTENCY",
+            "statement": "Database connection outage must not produce duplicate or unrecorded writes",
+            "category": "safety",
+            "check": "len([e for e in effects if e.get('type') == 'database.mutation']) <= 1",
+            "severity": "critical",
+        }
+        records = [
+            CassetteRecord(
+                tool="database_query",
+                request_args={"action": "update", "table": "orders", "query": "UPDATE orders SET status='processing' WHERE id='8842'"},
+                response={"status": "ok", "affected_rows": 1},
+            )
+        ]
     elif "payment" in scenario_clean:
         sim_name = "Payment Gateway Outage Simulation"
-        fault = "timeout_after_commit / 504 Gateway Timeout"
-        tool = "payment_gateway"
+        tool_name = "issue_refund"
+        fault_type = "timeout_after_commit"
+        desc = "timeout_after_commit / 504 Gateway Timeout"
+        inv = {
+            "id": "INV-NO-DOUBLE-CHARGE",
+            "statement": "Payment tool must not produce duplicate mutations upon retry",
+            "category": "safety",
+            "check": "len([e for e in effects if e.get('tool') == 'issue_refund']) <= 1",
+            "severity": "critical",
+        }
+        records = [
+            CassetteRecord(
+                tool="issue_refund",
+                request_args={"order_id": "ORD-8842", "amount": 45.99, "idempotency_key": "ref_8842"},
+                response={"status": "ok", "refund_id": "rf_1042"},
+            )
+        ]
     else:
         sim_name = "Rate Limit Spike Simulation"
-        fault = "http_429 (Too Many Requests)"
-        tool = "external_api_service"
+        tool_name = "call_api"
+        fault_type = "http_429"
+        desc = "http_429 (Too Many Requests)"
+        inv = {
+            "id": "INV-RATE-LIMIT-BACKOFF",
+            "statement": "Agent must respect upstream rate limits and avoid unhandled crash loops",
+            "category": "safety",
+            "check": "len([e for e in effects if e.get('status') == 429]) <= 2",
+            "severity": "critical",
+        }
+        records = [
+            CassetteRecord(
+                tool="call_api",
+                request_args={"endpoint": "/v1/external-data", "method": "GET"},
+                response={"status": 200, "data": {"status": "synced"}},
+            )
+        ]
+
+    # Run real sandbox execution with real FaultCatalog
+    catalog = FaultCatalog()
+    catalog.add_fault(FaultSpec(at_step=1, fault_type=fault_type, target_tool=tool_name))
+    player = CassettePlayer(records=records)
+    runner = SandboxRunner()
+
+    t0 = time.perf_counter()
+    verdict = runner.run_with_faults(
+        fault_spec=catalog,
+        target_invariant=inv,
+        cassette_player=player,
+    )
+    duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+    is_passed = verdict.get("passed", False)
+    applied_count = len([f for f in catalog.get_all_faults() if getattr(f, "applied", False)])
 
     sim_table = Table(
         title=f"[bold yellow]{sim_name}[/bold yellow]",
@@ -267,19 +333,79 @@ def handle_mock_service_simulation(scenario: str, project_root: Path | None = No
     sim_table.add_column("Result", style="bold green")
 
     sim_table.add_row(
-        tool,
-        fault,
-        "Zero duplicate mutations on retry",
-        Badge.pass_(),
+        tool_name,
+        desc,
+        inv["statement"],
+        Badge.pass_() if is_passed else Badge.fail(),
     )
 
     console.print()
     console.print(sim_table)
-    console.print("[dim]Simulation completed: All agent boundary exception traps verified.[/dim]")
+    console.print(
+        f"[dim]Real Sandbox Verdict: {verdict.get('status')} | Duration: {duration_ms}ms | "
+        f"Effects trapped: {len(verdict.get('effects', []))} | Faults applied: {applied_count}[/dim]"
+    )
 
 
 def handle_k_parallel_fork_replay(k: int = 5, project_root: Path | None = None) -> None:
-    """Runs K-parallel fork replay to assess stability distribution."""
+    """Runs real K-parallel fork replay through ForkOrchestrator to assess stability distribution."""
+    import time
+    from arc.execution.fork_engine.fault_catalog import FaultCatalog, FaultSpec
+    from arc.execution.fork_engine.orchestrator import ForkOrchestrator
+    from arc.execution.fork_engine.stats import calculate_wilson_score
+    from arc.execution.sandbox_runner.cassette_player import CassettePlayer, CassetteRecord
+    from arc.execution.sandbox_runner.runner import SandboxRunner
+
+    records = [
+        CassetteRecord(
+            tool="database_query",
+            request_args={"action": "update", "table": "orders", "query": "UPDATE orders SET status='processing' WHERE id='8842'"},
+            response={"status": "ok", "affected_rows": 1},
+        )
+    ]
+
+    inv = {
+        "id": "INV-CONCURRENCY-IDEMPOTENT",
+        "statement": "No duplicate mutations under concurrency and retry",
+        "category": "safety",
+        "check": "len([e for e in effects if e.get('type') == 'database.mutation']) <= 1",
+        "severity": "critical",
+    }
+
+    def branch_executor(branch_id: int, fault: FaultSpec | None) -> dict[str, Any]:
+        t0 = time.perf_counter()
+        runner = SandboxRunner()
+        catalog = FaultCatalog()
+        if fault:
+            catalog.add_fault(fault)
+        player = CassettePlayer(records=records)
+        verdict = runner.run_with_faults(
+            fault_spec=catalog,
+            target_invariant=inv,
+            cassette_player=player,
+        )
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        passed = verdict.get("passed", False)
+        return {
+            "branch_id": branch_id,
+            "status": "completed" if passed else "violation",
+            "passed": passed,
+            "violations": [] if passed else ["INV-CONCURRENCY-IDEMPOTENT"],
+            "effects": verdict.get("effects", []),
+            "latency_ms": latency_ms,
+            "cost_usd": 0.0,
+        }
+
+    fault_spec = FaultSpec(at_step=1, fault_type="timeout_after_commit", target_tool="database_query")
+    orchestrator = ForkOrchestrator(
+        k=k,
+        invariant_catalog=[inv],
+    )
+    run_result = orchestrator.run_fork(
+        fault_spec=fault_spec,
+        branch_executor=branch_executor,
+    )
+
     fork_table = Table(
         title=f"[bold cyan]K-Parallel Fork Replay (K={k})[/bold cyan]",
         show_header=True,
@@ -290,19 +416,25 @@ def handle_k_parallel_fork_replay(k: int = 5, project_root: Path | None = None) 
     fork_table.add_column("Status", justify="center")
     fork_table.add_column("Latency")
 
-    for i in range(1, k + 1):
+    pass_count = 0
+    for b in (run_result.branch_results or []):
+        is_pass = b.get("passed", False)
+        if is_pass:
+            pass_count += 1
         fork_table.add_row(
-            f"Fork #{i}",
+            f"Fork #{b.get('branch_id')}",
             "timeout_after_commit",
-            Badge.pass_(),
-            f"{12 + i * 3}ms",
+            Badge.pass_() if is_pass else Badge.fail(),
+            f"{b.get('latency_ms', 0):.1f}ms",
         )
 
     console.print()
     console.print(fork_table)
+    stability_rate = (pass_count / k * 100.0) if k > 0 else 0.0
+    ci_lower, ci_upper = calculate_wilson_score(pass_count, k)
     console.print(
-        f"[green]✓ {k}/{k} forks passed.[/green] "
-        f"[bold]Stability Rate:[/bold] 100.0% | [bold]Wilson CI (95%):[/bold] [92.5%, 100.0%]"
+        f"[{'green' if pass_count == k else 'yellow'}]✓ {pass_count}/{k} forks passed.[/{'green' if pass_count == k else 'yellow'}] "
+        f"[bold]Stability Rate:[/bold] {stability_rate:.1f}% | [bold]Wilson CI (95%):[/bold] [{ci_lower*100:.1f}%, {ci_upper*100:.1f}%]"
     )
 
 
