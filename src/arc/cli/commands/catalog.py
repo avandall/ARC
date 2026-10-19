@@ -139,9 +139,13 @@ def review_command(
 
         choice = Prompt.ask(
             "Action for candidate",
-            choices=["accept", "edit", "reject", "skip"],
+            choices=["accept", "edit", "reject", "skip", "back"],
             default="accept",
         )
+
+        if choice == "back":
+            console.print("[dim]Review paused. Returning to menu...[/dim]")
+            break
 
         if choice == "accept":
             _db_store.update_candidate_status(cid, "approved")

@@ -338,9 +338,10 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
             choices=[
                 "smoke (K=3, fast core scenarios)",
                 "full (K=20, comprehensive catalog)",
+                "[Back]",
             ],
         ).ask()
-        if not profile_choice:
+        if not profile_choice or profile_choice in ("[Back]", "[Cancel]", "[Back to Menu]"):
             return
         profile = "full" if "full" in profile_choice else "smoke"
         handle_full_chaos_gate(profile, project_root=root)
@@ -352,9 +353,10 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
                 "[db_down] Mock Database Outage (ConnectionRefused / Deadlock)",
                 "[payment_timeout] 3rd Party Payment Timeout (Timeout After Commit / 504)",
                 "[rate_limit] Upstream Rate Limit Spike (HTTP 429)",
+                "[Back]",
             ],
         ).ask()
-        if not scenario_choice:
+        if not scenario_choice or scenario_choice in ("[Back]", "[Cancel]", "[Back to Menu]"):
             return
         scenario_key = "db_down"
         if "payment_timeout" in scenario_choice:
@@ -371,9 +373,10 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
                 "K=5 (quick stability assessment)",
                 "K=10 (standard evaluation)",
                 "K=20 (deep stress check)",
+                "[Back]",
             ],
         ).ask()
-        if not k_choice:
+        if not k_choice or k_choice in ("[Back]", "[Cancel]", "[Back to Menu]"):
             return
         k = 5
         if "K=3" in k_choice:
@@ -393,13 +396,13 @@ def run_chaos_hub_menu(project_root: Path | None = None) -> None:
             )
             return
 
-        choices = [f.name for f in incident_files] + ["[Cancel]"]
+        choices = [f.name for f in incident_files] + ["[Back]"]
         selected_name = questionary.select(
             "Select an incident file to reproduce:",
             choices=choices,
         ).ask()
 
-        if not selected_name or selected_name == "[Cancel]":
+        if not selected_name or selected_name in ("[Cancel]", "[Back]", "[Back to Menu]"):
             return
 
         target_file = next(f for f in incident_files if f.name == selected_name)

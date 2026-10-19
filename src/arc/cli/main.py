@@ -63,97 +63,120 @@ app.add_typer(incidents_app, name="incidents")
 
 def run_setup_menu(project_root: Path) -> None:
     """Submenu for Setup & Instrumentation."""
-    choice = questionary.select(
-        "Setup & Instrumentation:",
-        choices=[
-            "[1.1] Edit Configuration",
-            "[1.2] Setup Tracing (@trace_agent & @trace_tool)",
-            "[1.3] Back to Main Menu",
-        ],
-    ).ask()
+    while True:
+        try:
+            choice = questionary.select(
+                "Setup & Instrumentation:",
+                choices=[
+                    "[1.1] Edit Configuration",
+                    "[1.2] Setup Tracing (@trace_agent & @trace_tool)",
+                    "[1.3] Back to Main Menu",
+                ],
+            ).ask()
 
-    if choice is None or choice == "[1.3] Back to Main Menu":
-        return
+            if choice is None or choice == "[1.3] Back to Main Menu":
+                return
 
-    if choice == "[1.1] Edit Configuration":
-        run_edit_config_wizard(project_root)
-    elif choice == "[1.2] Setup Tracing (@trace_agent & @trace_tool)":
-        mode = questionary.select(
-            "Tracing attachment mode:",
-            choices=[
-                "[1] Auto (AST Scanner & Interactive Diff Review)",
-                "[2] Manually (Guide & Examples)",
-                "[3] Back",
-            ],
-        ).ask()
-        if mode and mode.startswith("[1]"):
-            from arc.cli.tracer.scanner import scan_file_for_tracing
-            from arc.cli.ui.diff import review_and_apply_candidates
+            if choice == "[1.1] Edit Configuration":
+                run_edit_config_wizard(project_root)
+            elif choice == "[1.2] Setup Tracing (@trace_agent & @trace_tool)":
+                mode = questionary.select(
+                    "Tracing attachment mode:",
+                    choices=[
+                        "[1] Auto (AST Scanner & Interactive Diff Review)",
+                        "[2] Manually (Guide & Examples)",
+                        "[3] Back to Setup Menu",
+                    ],
+                ).ask()
+                if mode is None or mode.startswith("[3]"):
+                    continue
 
-            py_files = [
-                p
-                for p in project_root.rglob("*.py")
-                if not any(part.startswith((".", "venv")) for part in p.parts)
-            ]
-            all_cands = []
-            for pf in py_files:
-                all_cands.extend(scan_file_for_tracing(pf))
+                if mode.startswith("[1]"):
+                    from arc.cli.tracer.scanner import scan_file_for_tracing
+                    from arc.cli.ui.diff import review_and_apply_candidates
 
-            if not all_cands:
-                console.print("[green]✓ No uninstrumented agent or tool functions found.[/green]")
-            else:
-                console.print(f"[cyan]Found {len(all_cands)} tracing candidate(s). Starting review...[/cyan]")
-                applied = review_and_apply_candidates(all_cands, interactive=True)
-                console.print(f"[green]✓ Completed: {len(applied)} function(s) instrumented.[/green]")
-        elif mode and mode.startswith("[2]"):
-            console.print(
-                Panel.fit(
-                    "[bold]Manual Tracing Setup Example:[/bold]\n\n"
-                    "  from arc import trace_agent, trace_tool\n\n"
-                    "  @trace_tool(name=\"database_lookup\")\n"
-                    "  def lookup_record(id: str):\n"
-                    "      return ...\n\n"
-                    "  @trace_agent(name=\"primary_assistant\")\n"
-                    "  def handle_message(msg: str):\n"
-                    "      return ...",
-                    title="Tracing Guide",
-                    border_style="cyan",
-                )
-            )
+                    py_files = [
+                        p
+                        for p in project_root.rglob("*.py")
+                        if not any(part.startswith((".", "venv")) for part in p.parts)
+                    ]
+                    all_cands = []
+                    for pf in py_files:
+                        all_cands.extend(scan_file_for_tracing(pf))
+
+                    if not all_cands:
+                        console.print("[green]✓ No uninstrumented agent or tool functions found.[/green]")
+                    else:
+                        console.print(f"[cyan]Found {len(all_cands)} tracing candidate(s). Starting review...[/cyan]")
+                        applied = review_and_apply_candidates(all_cands, interactive=True)
+                        console.print(f"[green]✓ Completed: {len(applied)} function(s) instrumented.[/green]")
+                elif mode.startswith("[2]"):
+                    console.print(
+                        Panel.fit(
+                            "[bold]Manual Tracing Setup Example:[/bold]\n\n"
+                            "  from arc import trace_agent, trace_tool\n\n"
+                            "  @trace_tool(name=\"database_lookup\")\n"
+                            "  def lookup_record(id: str):\n"
+                            "      return ...\n\n"
+                            "  @trace_agent(name=\"primary_assistant\")\n"
+                            "  def handle_message(msg: str):\n"
+                            "      return ...",
+                            title="Tracing Guide",
+                            border_style="cyan",
+                        )
+                    )
+
+            console.print("\n[dim]" + "─" * 70 + "[/dim]\n")
+        except (StopIteration, KeyboardInterrupt):
+            break
 
 
-def run_main_menu(project_root: Path | None = None) -> None:
-    """Displays the interactive Main Menu for configured ARC projects."""
+def run_main_menu(project_root: Path | None = None) -> bool:
+    """Displays the interactive Main Menu for configured ARC projects.
+
+    Returns True if an action was executed and the session should continue,
+    or False if Exit was chosen or the menu was cancelled.
+    """
     root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
 
-    console.print(
-        Panel.fit(
-            f"[bold]Project:[/bold] {root}  |  [bold]Config:[/bold] .arc/config.yaml [[green]Active[/green]]",
-            title="[bold cyan]ARC Autonomous Reliability & Chaos Engine[/bold cyan]",
-            border_style="cyan",
+    try:
+        console.print(
+            Panel.fit(
+                f"[bold]Project:[/bold] {root}  |  [bold]Config:[/bold] .arc/config.yaml [[green]Active[/green]]",
+                title="[bold cyan]ARC Autonomous Reliability & Chaos Engine[/bold cyan]",
+                border_style="cyan",
+            )
         )
-    )
 
-    action = questionary.select(
-        "Select an action:",
-        choices=[
-            "[1] Setup & Instrumentation (Configure / Attach Tracing)",
-            "[2] Fault Injection & Chaos Testing (Security Check / Gate)",
-            "[3] Auto-Mine Invariants (Extract rules from Code / Schema / Postmortems)",
-            "[4] Exit",
-        ],
-    ).ask()
+        action = questionary.select(
+            "Select an action:",
+            choices=[
+                "[1] Setup & Instrumentation (Configure / Attach Tracing)",
+                "[2] Fault Injection & Chaos Testing (Security Check / Gate)",
+                "[3] Auto-Mine Invariants (Extract rules from Code / Schema / Postmortems)",
+                "[4] Exit",
+            ],
+        ).ask()
 
-    if action is None or action == "[4] Exit":
-        console.print("[dim]Goodbye![/dim]")
-        return
+        if action is None or action == "[4] Exit":
+            console.print("[dim]Goodbye![/dim]")
+            return False
 
-    if action.startswith("[1]"):
-        run_setup_menu(root)
-    elif action.startswith("[2]"):
-        run_chaos_hub_menu(root)
-    elif action.startswith("[3]"):
-        console.print("[cyan]Run [bold]arc catalog review[/bold] to review invariant candidates.[/cyan]")
+        if action.startswith("[1]"):
+            run_setup_menu(root)
+        elif action.startswith("[2]"):
+            run_chaos_hub_menu(root)
+        elif action.startswith("[3]"):
+            from arc.cli.commands.init import _trigger_quick_auto_mine
+            console.print("[dim]Scanning schemas and source code for invariants...[/dim]")
+            mined = _trigger_quick_auto_mine(root)
+            console.print(f"[green]✓ Invariant mining complete: {mined} candidates recorded into catalog.[/green]")
+            console.print("[cyan]Run [bold]arc catalog review[/bold] to inspect candidates.[/cyan]")
+
+        console.print("\n[dim]" + "─" * 70 + "[/dim]\n")
+        return True
+    except (StopIteration, KeyboardInterrupt, EOFError):
+        return False
 
 
 def handle_smart_start(project_root: Path | None = None) -> None:
@@ -164,7 +187,13 @@ def handle_smart_start(project_root: Path | None = None) -> None:
     if not is_arc_scaffold_initialized(root):
         run_init_wizard(root)
     else:
-        run_main_menu(root)
+        while True:
+            try:
+                should_continue = run_main_menu(root)
+                if not should_continue:
+                    break
+            except (StopIteration, KeyboardInterrupt, EOFError):
+                break
 
 
 @app.callback(invoke_without_command=True)

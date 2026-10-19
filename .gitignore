@@ -49,3 +49,6 @@ pipeline/docs/runtime/session_live.log
 pipeline/
 upload.md
 .agents
+.arc.env
+.arc/
+.env
