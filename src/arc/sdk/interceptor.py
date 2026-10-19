@@ -136,6 +136,16 @@ def _export_trace(
     """Exports trace to remote collector and/or writes to local trace_dir."""
     if not (collector_url or trace_dir):
         return
+    import os
+
+    trace_mode = os.environ.get("ARC_TRACE_MODE", "all").lower()
+    if trace_mode in ("error_only", "errors_only") and ctx.outcome_status not in (
+        "agent_error",
+        "error",
+        "violated",
+    ):
+        return
+
     payload = ctx.to_ctf_dict()
     if collector_url:
         _ = push_trace_to_collector(payload, collector_url)

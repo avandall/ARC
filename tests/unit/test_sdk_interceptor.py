@@ -214,3 +214,33 @@ def test_trace_agent_persists_to_trace_dir(tmp_path: Any, monkeypatch: Any) -> N
     assert "local_agent" in content
 
 
+def test_trace_agent_error_only_mode(tmp_path: Any, monkeypatch: Any) -> None:
+    """Verifies that ARC_TRACE_MODE=error_only ignores successes and only writes errors."""
+    monkeypatch.setenv("ARC_TRACE_DIR", str(tmp_path))
+    monkeypatch.setenv("ARC_TRACE_MODE", "error_only")
+
+    @arc.trace_agent(name="healthy_agent")
+    def healthy() -> str:
+        return "ok"
+
+    @arc.trace_agent(name="failing_agent")
+    def failing() -> None:
+        raise RuntimeError("Failure")
+
+    # 1. Healthy run should NOT write any file
+    assert healthy() == "ok"
+    assert len(list(tmp_path.glob("*.json"))) == 0
+
+    # 2. Failing run MUST write the trace file
+    import pytest
+    with pytest.raises(RuntimeError):
+        failing()
+
+    err_files = list(tmp_path.glob("*.json"))
+    assert len(err_files) == 1
+    content = err_files[0].read_text(encoding="utf-8")
+    assert "failing_agent" in content
+    assert "agent_error" in content
+
+
+
