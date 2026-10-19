@@ -81,7 +81,8 @@ class ReplayProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         """Handles POST requests, applying matching reproducer faults or OpenAI-compatible responses."""
         content_length = int(self.headers.get("Content-Length", 0))
-        req_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        if content_length > 0:
+            self.rfile.read(content_length)
 
         # Increment step counter
         if not hasattr(self.server, "step_counter"):
@@ -129,15 +130,22 @@ class ReplayProxyHandler(http.server.BaseHTTPRequestHandler):
                 )
                 return
 
-            if fault_type == "http_429":
-                self.send_response(429)
+            if fault_type in ("http_429", "http_401", "http_404"):
+                code = 429
+                if fault_type == "http_401":
+                    code = 401
+                elif fault_type == "http_404":
+                    code = 404
+                self.send_response(code)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("X-ARC-Policy", "strict_no_fallback")
                 self.end_headers()
                 self.wfile.write(
                     json.dumps({
-                        "error": "Too Many Requests",
-                        "status_code": 429,
-                        "detail": "ARC Debugger Proxy injected HTTP 429 rate limit",
+                        "error": "StrictNoFallbackError",
+                        "status_code": code,
+                        "blocked_policy": "strict_no_fallback",
+                        "detail": f"ARC Debugger Proxy injected HTTP {code} with Strict No-Fallback Policy",
                         "step": current_step,
                     }).encode("utf-8")
                 )
@@ -194,10 +202,12 @@ class LocalDebuggerProxy:
         repro_file: str | None = None,
         requested_port: int = 8089,
         host: str = "127.0.0.1",
+        strict_no_fallback: bool = True,
     ) -> None:
         self.repro_file = repro_file
         self.requested_port = requested_port
         self.host = host
+        self.strict_no_fallback = strict_no_fallback
         self.bound_port = requested_port
         self.fallback_occurred = False
         self.server: socketserver.TCPServer | None = None
@@ -234,6 +244,7 @@ class LocalDebuggerProxy:
             allow_reuse_address = True
             repro_data: dict[str, Any] = self.repro_data
             faults: list[dict[str, Any]] = self.faults
+            strict_no_fallback: bool = self.strict_no_fallback
             step_counter: int = 0
 
         self.server = ThreadedTCPServer(
