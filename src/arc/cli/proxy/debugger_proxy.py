@@ -171,7 +171,7 @@ class ReplayProxyHandler(http.server.BaseHTTPRequestHandler):
                         "finish_reason": "stop",
                     }
                 ],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
             self.wfile.write(json.dumps(completion_payload).encode("utf-8"))
             return

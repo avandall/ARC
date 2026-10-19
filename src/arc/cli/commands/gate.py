@@ -112,9 +112,9 @@ def gate_command(
                     "fault_applied": spec.to_dict(),
                     "violations": violations,
                     "effects": res.get("effects", []),
-                    "cost_usd": 0.001,
-                    "tokens": 40,
-                    "duration_ms": int(res.get("eval_result", {}).get("exec_time_ms", 10)),
+                    "cost_usd": 0.0,
+                    "tokens": int(res.get("tokens", 0)),
+                    "duration_ms": int(res.get("eval_result", {}).get("exec_time_ms", 0)),
                 }
 
             branch_executor = _gate_branch_executor
@@ -137,7 +137,6 @@ def gate_command(
     table.add_row("Profile", result.profile)
     table.add_row("K Branches", str(result.k))
     table.add_row("Reason", result.reason)
-    table.add_row("Total Cost (USD)", f"${result.total_cost_usd:.4f}")
 
     console.print(table)
 

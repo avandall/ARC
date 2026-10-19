@@ -501,13 +501,6 @@ def repro_command(
         else:
             confidence_interval = None
 
-    cost_usd = data.get("cost_usd")
-    if isinstance(cost_usd, str):
-        try:
-            cost_usd = float(cost_usd.replace("$", "").strip())
-        except ValueError:
-            cost_usd = None
-
     raw_faults = data.get("faults") or data.get("fault") or data.get("fault_chain") or []
     faults_list: list[dict[str, Any]] = []
     if isinstance(raw_faults, dict):
@@ -531,9 +524,6 @@ def repro_command(
     if confidence_interval and isinstance(confidence_interval, (list, tuple)) and len(confidence_interval) == 2:
         ci_str = f"[{float(confidence_interval[0]) * 100:.1f}%, {float(confidence_interval[1]) * 100:.1f}%] (95% Wilson Score)"
         table.add_row("Confidence Interval (CI)", ci_str)
-
-    if cost_usd is not None and isinstance(cost_usd, (int, float)):
-        table.add_row("Evaluation Cost", f"${float(cost_usd):.4f} USD")
 
     table.add_row("Determinism Level", determinism_level)
     table.add_row("Replay Status", "[bold red]REPRODUCED (Invariant Violation Confirmed) ❌[/bold red]")

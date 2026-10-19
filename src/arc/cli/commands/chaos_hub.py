@@ -210,9 +210,9 @@ def run_repro_visual(
         diff_file=str(diff_file),
         replay_status=rep_status,
         wilson_ci=ci_str,
-        ai_tokens=str(data.get("ai_tokens", "42.1k")),
+        ai_tokens=str(data.get("ai_tokens", "N/A")),
         ai_model_name=str(data.get("ai_model_name", "gpt-4o")),
-        duration=str(data.get("duration", "4.12s")),
+        duration=str(data.get("duration", "N/A")),
     )
 
     if console_out:

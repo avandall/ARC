@@ -159,7 +159,7 @@ def render_repro_result(
     diff_file: str | None = None,
     replay_status: str = "REPRODUCED (100% Deterministic)",
     wilson_ci: str = "[92.5%, 100.0%]",
-    ai_tokens: str = "42.1k",
+    ai_tokens: str = "N/A",
     ai_model_name: str = "gpt-4o",
     duration: float | str = "4.12s",
     current_iteration: int = 1,
@@ -203,6 +203,11 @@ def render_repro_result(
     separator = f"[dim]{'-' * dash_count} {sep_badge} {'-' * dash_count}[/dim]"
 
     duration_str = f"{duration:.2f}s" if isinstance(duration, (int, float)) else str(duration)
+    ai_desc = (
+        f"{ai_tokens} tokens • {ai_model_name}"
+        if ai_tokens and ai_tokens != "N/A"
+        else ai_model_name
+    )
 
     parts.extend([
         "",
@@ -210,7 +215,7 @@ def render_repro_result(
         "",
         f" Replay Status  [bold green]{replay_status}[/bold green]",
         f"     Wilson CI  {wilson_ci} (95% confidence interval)",
-        f"            AI  {ai_tokens} tokens • {ai_model_name}",
+        f"            AI  {ai_desc}",
         f"      Duration  {duration_str}",
     ])
 

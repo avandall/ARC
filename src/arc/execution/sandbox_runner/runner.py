@@ -83,7 +83,6 @@ class SandboxConfig:
         self.uds_socket_path = uds_socket_path
         self.proxy_url = proxy_url
         self.mock_credentials = mock_credentials or {
-            "API_KEY": "mock_arc_key_test",
             "ENVIRONMENT": "sandbox",
         }
         self.bundle_secret = bundle_secret
