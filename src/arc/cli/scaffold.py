@@ -46,6 +46,25 @@ The exact agent or tool execution that failed:
 """
 
 
+DEFAULT_ENV_EXAMPLE = """# ARC CLI Environment Variables Template
+# Copy this file to .env or export into your environment:
+#   cp .arc/.env.example .env
+
+# LLM Provider API Keys
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+
+# Local / Ollama Configuration (if applicable)
+OLLAMA_HOST=http://localhost:11434
+
+# ARC Runtime Overrides (optional)
+ARC_TARGET_URL=http://localhost:8000
+ARC_PROXY_PORT=8089
+ARC_STRICT_NO_FALLBACK=1
+"""
+
+
 def init_arc_scaffold(
     project_root: Path,
     config: ARCConfig | None = None,
@@ -83,6 +102,10 @@ def init_arc_scaffold(
     if not template_file.exists() or overwrite:
         template_file.write_text(DEFAULT_POSTMORTEM_TEMPLATE, encoding="utf-8")
 
+    env_example_file = arc_dir / ".env.example"
+    if not env_example_file.exists() or overwrite:
+        env_example_file.write_text(DEFAULT_ENV_EXAMPLE, encoding="utf-8")
+
     config_file = arc_dir / "config.yaml"
     if not config_file.exists() or overwrite:
         effective_cfg = config or ARCConfig()
@@ -91,6 +114,7 @@ def init_arc_scaffold(
     return {
         "arc_dir": arc_dir,
         "config_file": config_file,
+        "env_example_file": env_example_file,
         "incidents_dir": incidents_dir,
         "evidence_agent_dir": evidence_agent_dir,
         "evidence_backend_dir": evidence_backend_dir,

@@ -130,7 +130,7 @@ def test_arc_config_save_load_roundtrip(tmp_path: Path) -> None:
         target_url="https://api.myagent.ai",
         proxy_port=8089,
         active_provider="gemini",
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3.5-flash-lite",
         telemetry_enabled=True,
         trace_capture=True,
     )
@@ -156,3 +156,40 @@ def test_find_config(tmp_path: Path) -> None:
     found = find_config(nested_dir)
     assert found is not None
     assert found.resolve() == (tmp_path / ".arc" / "config.yaml").resolve()
+
+
+def test_env_example_created(tmp_path: Path) -> None:
+    """Verifies that .arc/.env.example is created with template variables."""
+    paths = init_arc_scaffold(tmp_path)
+    env_example = paths["env_example_file"]
+    assert env_example.is_file()
+    content = env_example.read_text(encoding="utf-8")
+    assert "OPENAI_API_KEY=" in content
+    assert "ANTHROPIC_API_KEY=" in content
+    assert "GEMINI_API_KEY=" in content
+
+
+def test_resolve_provider_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifies resolve_provider_credentials reads config or environment variables."""
+    from arc.cli.config import require_provider_credentials, resolve_provider_credentials
+
+    # Clear env
+    for k in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "ARC_API_KEY", "LLM_API_KEY"]:
+        monkeypatch.delenv(k, raising=False)
+
+    # 1. Config with explicit api_key
+    cfg = ARCConfig(active_provider="openai", api_key="sk-explicit-config")
+    assert resolve_provider_credentials(cfg, project_root=tmp_path) == "sk-explicit-config"
+
+    # 2. Config without api_key, resolved from environment variable
+    cfg_empty = ARCConfig(active_provider="anthropic", api_key=None)
+    assert resolve_provider_credentials(cfg_empty, project_root=tmp_path) is None
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-env")
+    assert resolve_provider_credentials(cfg_empty, project_root=tmp_path) == "sk-ant-from-env"
+    assert require_provider_credentials(cfg_empty, project_root=tmp_path) == "sk-ant-from-env"
+
+    # 3. Missing credentials raise descriptive error
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="Missing API key for provider 'anthropic'"):
+        require_provider_credentials(cfg_empty, project_root=tmp_path)

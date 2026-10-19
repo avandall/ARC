@@ -111,7 +111,7 @@ def run_init_wizard(project_root: Path | None = None) -> ARCConfig:
     default_models = {
         "openai": "gpt-4o",
         "anthropic": "claude-3-5-sonnet",
-        "gemini": "gemini-1.5-flash",
+        "gemini": "gemini-3.5-flash-lite",
         "ollama": "llama3.1",
     }
     suggested_model = default_models.get(provider, "gpt-4o")

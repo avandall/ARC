@@ -108,3 +108,82 @@ def get_arc_dir(project_root: Path | None = None) -> Path:
     """Returns the .arc directory path for a project root."""
     root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
     return root / ".arc"
+
+
+def load_env_file(project_root: Path | None = None) -> None:
+    """Loads environment variables from .env in project root if present and not already set."""
+    import os
+
+    root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    for candidate in [root / ".env", root / ".arc" / ".env"]:
+        if candidate.is_file():
+            try:
+                for line in candidate.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("'\"")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+            except Exception:
+                pass
+
+
+def resolve_provider_credentials(
+    config: ARCConfig | None = None,
+    provider: str | None = None,
+    project_root: Path | None = None,
+) -> str | None:
+    """Resolves API key for an LLM provider from config or environment variables.
+
+    Lookup hierarchy:
+      1. Explicit config.api_key (if non-empty)
+      2. Environment variable specific to provider:
+         - openai -> OPENAI_API_KEY
+         - anthropic -> ANTHROPIC_API_KEY
+         - gemini -> GEMINI_API_KEY or GOOGLE_API_KEY
+         - ollama -> OLLAMA_API_KEY (optional)
+      3. Generic environment variables: ARC_API_KEY, LLM_API_KEY
+    """
+    import os
+
+    load_env_file(project_root)
+
+    if config and config.api_key and config.api_key.strip():
+        return config.api_key.strip()
+
+    active = (provider or (config.active_provider if config else "openai")).strip().lower()
+
+    provider_env_map = {
+        "openai": ["OPENAI_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        "ollama": ["OLLAMA_API_KEY"],
+    }
+
+    env_candidates = provider_env_map.get(active, []) + ["ARC_API_KEY", "LLM_API_KEY"]
+    for env_var in env_candidates:
+        val = os.getenv(env_var)
+        if val and val.strip():
+            return val.strip()
+
+    return None
+
+
+def require_provider_credentials(
+    config: ARCConfig | None = None,
+    provider: str | None = None,
+    project_root: Path | None = None,
+) -> str:
+    """Resolves API key or raises a descriptive ValueError if not configured."""
+    key = resolve_provider_credentials(config=config, provider=provider, project_root=project_root)
+    if not key:
+        active = (provider or (config.active_provider if config else "openai")).strip().lower()
+        env_name = f"{active.upper()}_API_KEY"
+        raise ValueError(
+            f"Missing API key for provider '{active}'. Please set environment variable {env_name} "
+            f"in your environment, in .env, or configure 'api_key' in .arc/config.yaml."
+        )
+    return key
