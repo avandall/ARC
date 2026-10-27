@@ -57,7 +57,7 @@ class QuarantineManager:
 
         # Re-compute precision if triaged > 0 and confirmed_real_bug is present
         if triaged > 0 and "confirmed_real_bug" in track_record and "precision" not in track_record:
-            confirmed = track_record.get("confirmed_real_bug", 0)
+            confirmed = track_record["confirmed_real_bug"]
             precision = confirmed / triaged
             track_record["precision"] = precision
 
@@ -103,10 +103,10 @@ class QuarantineManager:
         """
         status = invariant.status if isinstance(invariant, InvariantSpec) else invariant.get("status", "active")
 
-        if status in ("quarantined", "deprecated"):
-            return False
+        if status == "active":
+            return evaluation_result.violated
 
-        return evaluation_result.violated
+        return False
 
     def run_shadow_quarantine(
         self,
@@ -135,7 +135,7 @@ class QuarantineManager:
 
         triaged = track_record["triaged"]
         confirmed = track_record.get("confirmed_real_bug", 0)
-        track_record["precision"] = confirmed / triaged if triaged > 0 else 1.0
+        track_record["precision"] = confirmed / triaged
 
         self.auto_quarantine_check(invariant)
 

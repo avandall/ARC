@@ -37,6 +37,7 @@ dependencies = [
     "tree-sitter-sql>=0.3.11",
     "jsonschema>=4.26.0",
     "questionary>=2.0.0",
+    "mutmut>=3.8.0",
 ]
 
 [project.urls]
@@ -81,6 +82,11 @@ mypy_path = "src"
 testpaths = ["tests", "pipeline/tests"]
 python_files = "test_*.py"
 pythonpath = ["src", ".", "pipeline"]
+
+[tool.mutmut]
+source_paths = ["src/arc/execution/invariant_engine/"]
+pytest_add_cli_args_test_selection = ["tests/unit/test_invariant_engine.py"]
+
 
 [dependency-groups]
 dev = [

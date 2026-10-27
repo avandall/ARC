@@ -167,22 +167,22 @@ class DeterministicASTValidator(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         """Inspects function call node and raises ForbiddenExpressionError if non-deterministic."""
-        func_name = ""
         if isinstance(node.func, ast.Name):
-            func_name = node.func.id
+            if node.func.id in FORBIDDEN_FUNCTIONS:
+                raise ForbiddenExpressionError(
+                    f"Forbidden non-deterministic function call: '{node.func.id}'"
+                )
         elif isinstance(node.func, ast.Attribute):
-            func_name = node.func.attr
             if isinstance(node.func.value, ast.Name):
                 full_call = f"{node.func.value.id}.{node.func.attr}"
                 if full_call in FORBIDDEN_FUNCTIONS or node.func.value.id in FORBIDDEN_FUNCTIONS:
                     raise ForbiddenExpressionError(
                         f"Forbidden non-deterministic function call: '{full_call}'"
                     )
-
-        if func_name in FORBIDDEN_FUNCTIONS:
-            raise ForbiddenExpressionError(
-                f"Forbidden non-deterministic function call: '{func_name}'"
-            )
+            if node.func.attr in FORBIDDEN_FUNCTIONS:
+                raise ForbiddenExpressionError(
+                    f"Forbidden non-deterministic function call: '{node.func.attr}'"
+                )
 
         self.generic_visit(node)
 
@@ -243,26 +243,20 @@ class InvariantEvaluator:
         start_time = time.perf_counter()
 
         if isinstance(invariant, dict):
-            spec = InvariantSpec(
-                id=invariant["id"],
-                statement=invariant.get("statement", ""),
-                category=invariant.get("category", "safety"),
-                check=invariant["check"],
-                severity=invariant.get("severity", "critical"),
-                status=invariant.get("status", "active"),
-                track_record=invariant.get("track_record", {}),
-            )
+            inv_id: str = invariant["id"]
+            check_expr: str = invariant["check"]
         else:
-            spec = invariant
+            inv_id = invariant.id
+            check_expr = invariant.check
 
         try:
-            compiled_ast = self.compile(spec.check)
+            compiled_ast = self.compile(check_expr)
             code_obj = compile(compiled_ast, "<invariant>", "eval")  # type: ignore[call-overload]
         except ForbiddenExpressionError:
             raise
         except Exception as exc:  # noqa: BLE001
             return EvaluationResult(
-                invariant_id=spec.id,
+                invariant_id=inv_id,
                 violated=True,
                 error=f"Compilation error: {exc}",
                 exec_time_ms=(time.perf_counter() - start_time) * 1000.0,
@@ -271,15 +265,10 @@ class InvariantEvaluator:
         wrapped_effects = [wrap_attr_dict(e) for e in effects]
         wrapped_context = wrap_attr_dict(context or {})
 
-        eval_globals = {"__builtins__": SAFE_BUILTINS}
         eval_locals: dict[str, Any] = {
             "effects": wrapped_effects,
             "context": wrapped_context,
-            "order": (
-                getattr(wrapped_context, "order", None)
-                if hasattr(wrapped_context, "order")
-                else (wrapped_context.get("order") if isinstance(wrapped_context, dict) else None)
-            ),
+            "order": getattr(wrapped_context, "order", None),
         }
 
         if isinstance(wrapped_context, dict):
@@ -287,13 +276,15 @@ class InvariantEvaluator:
                 if k not in eval_locals:
                     eval_locals[k] = v
 
+        eval_globals: dict[str, Any] = {"__builtins__": SAFE_BUILTINS, **eval_locals}
+
         try:
-            _eval_fn = getattr(__import__("builtins"), "eval")
-            result = _eval_fn(code_obj, eval_globals, eval_locals)
+            _eval_fn = __import__("builtins").eval
+            result = _eval_fn(code_obj, eval_globals)
             violated = not bool(result)
             exec_time = (time.perf_counter() - start_time) * 1000.0
             return EvaluationResult(
-                invariant_id=spec.id,
+                invariant_id=inv_id,
                 violated=violated,
                 details={"result": result},
                 exec_time_ms=exec_time,
@@ -301,8 +292,8 @@ class InvariantEvaluator:
         except Exception as exc:  # noqa: BLE001
             exec_time = (time.perf_counter() - start_time) * 1000.0
             return EvaluationResult(
-                invariant_id=spec.id,
+                invariant_id=inv_id,
                 violated=True,
-                error=f"Runtime error during evaluation: {exc}",
+                error=f"Runtime error during evaluation: {exc} [{code_obj.co_filename}]",
                 exec_time_ms=exec_time,
             )
